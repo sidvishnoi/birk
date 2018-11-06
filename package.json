@@ -1,0 +1,21 @@
+{
+  "name": "birk",
+  "version": "1.0.0",
+  "description": "A fast HTML template engine with syntax similar to Ruby's Liquid. Used in Bleu.",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "node test/test.js"
+  },
+  "keywords": [
+    "template-engine",
+    "liquid"
+  ],
+  "author": "Sid Vishnoi",
+  "license": "MIT",
+  "devDependencies": {
+    "easy-table": "^1.1.1"
+  }
+}
