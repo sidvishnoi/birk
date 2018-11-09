@@ -1,11 +1,13 @@
 module.exports.tokenize = str => {
+  const getLineNumbers = newLineFinder(str);
+
   const tokens = [];
   let start = 0;
 
   const lookUpMap = new Map([["object", "{{"], ["tag", "{%"]]);
 
   while (lookUpMap.size !== 0) {
-    let pos = Number.POSITIVE_INFINITY;
+    let pos = str.length;
     let type;
     for (const [key, val] of lookUpMap) {
       const idx = str.indexOf(val, start);
@@ -17,12 +19,19 @@ module.exports.tokenize = str => {
       }
     }
 
-    tokens.push({ type: "raw", val: str.slice(start, pos) });
+    tokens.push({
+      type: "raw",
+      val: str.slice(start, pos),
+      start,
+      end: pos,
+      lines: getLineNumbers(start, pos),
+    });
     if (type === "object") {
       start = asObject(pos);
     } else if (type === "tag") {
       start = asTag(pos);
     } else {
+      tokens.push({ type: "eof" });
       break;
     }
   }
@@ -30,29 +39,39 @@ module.exports.tokenize = str => {
   return tokens;
 
   function asObject(from) {
-    let end = str.indexOf("}}", from);
+    const end = str.indexOf("}}", from);
     const match = str.slice(from + 2, end).trim();
-    const [identifier, ...filters] = splitString(match, "|");
+    const [name, ...filters] = splitString(match, "|");
     for (let i = 0, flen = filters.length; i < flen; ++i) {
-      let [name, args] = splitString(filters[i], ":");
-      name = name.trim();
+      let [filterName, args] = splitString(filters[i], ":");
+      filterName = filterName.trim();
       args = args ? splitString(args, ",").map(arg => arg.trim()) : [];
-      filters[i] = { name, args };
+      filters[i] = { name: filterName, args };
     }
     tokens.push({
       type: "object",
-      identifier: identifier.trim(),
-      filters
+      name: name.trim(),
+      filters,
+      start: from,
+      end: end + 2,
+      lines: getLineNumbers(from, end),
     });
     return end + 2;
   }
 
   function asTag(from) {
-    let end = str.indexOf("%}", from);
+    const end = str.indexOf("%}", from);
     const match = str.slice(from + 2, end).trim();
     let [name, ...args] = splitString(match, " ");
     name = name.trim();
-    tokens.push({ type: "tag", name, args });
+    tokens.push({
+      type: "tag",
+      name,
+      args,
+      start: from,
+      end: end + 2,
+      lines: getLineNumbers(from, end),
+    });
     return end + 2;
   }
 };
@@ -79,6 +98,26 @@ function splitString(str, ch, limit = 999) {
     result.push(str.slice(start, i));
   }
   return result;
+}
+
+function newLineFinder(str) {
+  const newLineIndices = [];
+  for (let i = 0, len = str.length; i < len; ++i) {
+    if (str.charAt(i) === "\n") newLineIndices.push(i);
+  }
+
+  return (prev, next) => {
+    const { length } = newLineIndices;
+    let lineStart = 0;
+    while (lineStart < length && prev > newLineIndices[lineStart]) {
+      lineStart++;
+    }
+    let lineEnd = lineStart;
+    while (lineEnd < length && next >= newLineIndices[lineEnd]) {
+      lineEnd++;
+    }
+    return [lineStart, lineEnd];
+  };
 }
 
 function throwParseError(str, message, pos) {
