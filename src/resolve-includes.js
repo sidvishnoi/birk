@@ -1,6 +1,8 @@
 // @ts-check
+// resolves {% include filename %} tags
 const path = require("path");
-const { readFile } = require("fs").promises;
+const { readFile: _readFile } = require("fs");
+const readFile = require("util").promisify(_readFile);
 
 const { asUnixPath, addIndent, BirkError, getContext } = require("./utils");
 
@@ -11,27 +13,24 @@ const regex = /{%\s*include (?:"|'|)([a-zA-z0-9_\-\.\/\s]+)(?:"|'|)\s*%}/;
  * @param {string} input
  * @param {{ fileName: FilePath, includesDir: FilePath, baseDir: FilePath }} options
  */
-async function preProcess(input, options) {
+module.exports.preProcess = async function preProcess(input, options) {
   const { fileName, baseDir, includesDir } = options;
 
   /** @type {Map<FilePath, FilePath[]>} */
   const dependencyTree = new Map();
 
   /** @type {Map<FilePath, string>} */
-  const cache = new Map();
+  const fileMap = new Map();
 
   const file = rel(fileName);
-  cache.set(file, input);
-  let processedText = await substitute(input, file);
-  processedText = wrapDebugInfo(processedText, 0, file, file);
-
-  const dependencies = new Set([].concat(...[...dependencyTree.values()]));
+  fileMap.set(file, input);
+  const processedText = await substitute(input, file);
+  const processedTextWithDebug = wrapDebugInfo(processedText, "0", file, file);
 
   return {
-    fileMap: cache,
-    dependencies: [...dependencies],
+    fileMap: fileMap,
     dependencyTree,
-    text: processedText,
+    text: processedTextWithDebug,
   };
 
   /**
@@ -60,8 +59,7 @@ async function preProcess(input, options) {
     const substitutions = await getSubstitutions(
       includedFiles,
       matchedLines,
-      file,
-      cache
+      file
     );
 
     for (const { line, indent, index } of matchedLines) {
@@ -80,10 +78,9 @@ async function preProcess(input, options) {
    * @param {FilePath[]} files
    * @param {ReturnType<typeof getAllMatches>} matchedLines
    * @param {FilePath} parentFile
-   * @param {Map<FilePath, string>} cache
    */
-  async function getSubstitutions(files, matchedLines, parentFile, cache) {
-    /** @type {Map<FilePath, {length: string, id: number[]}>} */
+  async function getSubstitutions(files, matchedLines, parentFile) {
+    /** @type {Map<FilePath, {match: string, length: string, id: number[]}>} */
     const substitutionMap = files.reduce((unique, file, i) => {
       if (!unique.has(file)) {
         const { length, match } = matchedLines[i];
@@ -96,8 +93,8 @@ async function preProcess(input, options) {
     const uniqueFiles = [...substitutionMap.keys()];
 
     const promises = uniqueFiles.map(file =>
-      cache.has(rel(file))
-        ? Promise.resolve(cache.get(rel(file)))
+      fileMap.has(rel(file))
+        ? Promise.resolve(fileMap.get(rel(file)))
         : readFile(file, "utf8")
     );
 
@@ -106,12 +103,7 @@ async function preProcess(input, options) {
     try {
       contents = await Promise.all(promises);
     } catch (error) {
-      const context = includeErrorContext(
-        error,
-        parentFile,
-        substitutionMap,
-        cache
-      );
+      const context = includeErrorContext(error, parentFile, substitutionMap);
       throw new BirkError(
         `Failed to resolve include.\n${error.message}`,
         "BirkPreprocessorError",
@@ -121,14 +113,14 @@ async function preProcess(input, options) {
 
     uniqueFiles.map((file, i) => {
       file = rel(file);
-      cache.set(file, contents[i]);
+      fileMap.set(file, contents[i]);
     });
 
     // return substitition for each include
     return [...substitutionMap.entries()].reduce(
       (subs, [file, { length, id: indexes }]) => {
         file = rel(file);
-        const sub = wrapDebugInfo(cache.get(file), length, file, parentFile);
+        const sub = wrapDebugInfo(fileMap.get(file), length, file, parentFile);
         for (const i of indexes) {
           subs[i] = sub;
         }
@@ -163,34 +155,44 @@ async function preProcess(input, options) {
   }
 
   /**
-   * @param {string} content
-   * @param {FilePath} current
-   * @param {FilePath} parent
+   * create error context for file inclusion failure
+   * @param {Error} error
+   * @param {FilePath} parentFile
+   * @param {Map<FilePath, {match: string, length: string, id: number[]}>} substitutionMap
    */
-  function wrapDebugInfo(content, length, current, parent) {
-    let wrapped = `{# beg ${length} ${current} #}`;
-    wrapped += content.trim();
-    wrapped += `{# end ${0} ${parent} #}`;
-    return wrapped;
+  function includeErrorContext(error, parentFile, substitutionMap) {
+    const errMatch = error.message.match(/open (?:'|")(.*)(?:'|")/);
+    const filePath = errMatch[1].trim();
+    let context;
+    if (substitutionMap.has(filePath)) {
+      const { match } = substitutionMap.get(filePath);
+      const pos = fileMap.get(parentFile).search(match);
+      if (pos !== -1) {
+        context = getContext(pos, parentFile, fileMap, true);
+      }
+    }
+    return context;
   }
 
+  /**
+   * @param {string} content
+   * @param {string} length length of {% include filename %} statement
+   * @param {FilePath} current current file
+   * @param {FilePath} parent current file's parent
+   */
+  function wrapDebugInfo(content, length, current, parent) {
+    return (
+      `{# beg ${length} ${current} #}` +
+      content.trim() +
+      `{# end ${0} ${parent} #}`
+    );
+  }
+
+  /**
+   * return path relative to baseDir
+   * @param {string} p
+   */
   function rel(p) {
     return asUnixPath(path.relative(baseDir, p));
   }
 }
-
-function includeErrorContext(error, parentFile, substitutionMap, cache) {
-  const errMatch = error.message.match(/open (?:'|")(.*)(?:'|")/);
-  const filePath = errMatch[1].trim();
-  let context;
-  if (substitutionMap.has(filePath)) {
-    const { match } = substitutionMap.get(filePath);
-    const pos = cache.get(parentFile).search(match);
-    if (pos !== -1) {
-      context = getContext(pos, parentFile, cache, true);
-    }
-  }
-  return context;
-}
-
-module.exports = { preProcess };
