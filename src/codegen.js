@@ -34,7 +34,7 @@ class Buffer {
   /** @param {Token} token */
   addDebug(token) {
     if (!this.debug) return;
-    let debugStr = `_pos_ = ${token._pos_};`;
+    let debugStr = `_pos_ = ${token.fpos};`;
     if (this.buf[this.buf.length - 1].startsWith("_pos_")) {
       this.buf[this.buf.length - 1] = debugStr;
     } else {
@@ -55,7 +55,7 @@ class Buffer {
 /**
  * @param {Token[]} tokens
  */
-function main(tokens) {
+function main(tokens, fileMap, options) {
   /** @type {State} */
   const state = {
     idx: 0,

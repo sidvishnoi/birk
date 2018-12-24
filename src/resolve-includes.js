@@ -2,8 +2,10 @@
 const path = require("path");
 const { readFile } = require("fs").promises;
 
+const { asUnixPath, addIndent, BirkError, getContext } = require("./utils");
+
 // {% include "filename" %}
-const regex = /{%\s*include (?:"|')([a-zA-z0-9_\-\.\/\s]+)(?:"|')\s*%}/;
+const regex = /{%\s*include (?:"|'|)([a-zA-z0-9_\-\.\/\s]+)(?:"|'|)\s*%}/;
 
 /**
  * @param {string} input
@@ -21,12 +23,12 @@ async function preProcess(input, options) {
   const file = rel(fileName);
   cache.set(file, input);
   let processedText = await substitute(input, file);
-  // processedText = wrapDebugInfo(processedText, 0, file, file);
+  processedText = wrapDebugInfo(processedText, 0, file, file);
 
   const dependencies = new Set([].concat(...[...dependencyTree.values()]));
 
   return {
-    cache,
+    fileMap: cache,
     dependencies: [...dependencies],
     dependencyTree,
     text: processedText,
@@ -45,12 +47,11 @@ async function preProcess(input, options) {
       return content;
     }
 
-    const lengths = matchedLines.map(l => l.length);
     const includedFiles = matchedLines.map(({ file: f }) =>
       path.join(includesDir, path.posix.normalize(f))
     );
 
-    if (dependencyTree.has(file)) {
+    if (dependencyTree.get(file)) {
       console.log(dependencyTree);
       throw new Error("Cyclic dependencies found.");
     }
@@ -58,7 +59,7 @@ async function preProcess(input, options) {
 
     const substitutions = await getSubstitutions(
       includedFiles,
-      lengths,
+      matchedLines,
       file,
       cache
     );
@@ -77,14 +78,17 @@ async function preProcess(input, options) {
    * This messy function exists so the we don't read same file multiple times!
    * @typedef {string} FilePath
    * @param {FilePath[]} files
-   * @param {number[]} lengths
+   * @param {ReturnType<typeof getAllMatches>} matchedLines
    * @param {FilePath} parentFile
    * @param {Map<FilePath, string>} cache
    */
-  async function getSubstitutions(files, lengths, parentFile, cache) {
+  async function getSubstitutions(files, matchedLines, parentFile, cache) {
     /** @type {Map<FilePath, {length: string, id: number[]}>} */
     const substitutionMap = files.reduce((unique, file, i) => {
-      if (!unique.has(file)) unique.set(file, { length: lengths[i], id: [] });
+      if (!unique.has(file)) {
+        const { length, match } = matchedLines[i];
+        unique.set(file, { match, length, id: [] });
+      }
       unique.get(file).id.push(i);
       return unique;
     }, new Map());
@@ -96,7 +100,24 @@ async function preProcess(input, options) {
         ? Promise.resolve(cache.get(rel(file)))
         : readFile(file, "utf8")
     );
-    const contents = await Promise.all(promises);
+
+    /** @type {string[]} */
+    let contents;
+    try {
+      contents = await Promise.all(promises);
+    } catch (error) {
+      const context = includeErrorContext(
+        error,
+        parentFile,
+        substitutionMap,
+        cache
+      );
+      throw new BirkError(
+        `Failed to resolve include.\n${error.message}`,
+        "BirkPreprocessorError",
+        context
+      );
+    }
 
     uniqueFiles.map((file, i) => {
       file = rel(file);
@@ -129,27 +150,16 @@ async function preProcess(input, options) {
         const match = lines[i].match(regex);
         const indent = lines[i].search(/\S/);
         matchedLines.push({
+          match: match[0],
           length: match[0].length,
           line: i,
-          file: match[1],
+          file: match[1].trim(),
           indent,
-          index: j++
+          index: j++,
         });
       }
     }
     return matchedLines;
-  }
-
-  /**
-   * Adds indentation to included file so the overall template has proper indendation
-   * @param {number} indent
-   * @param {string} str
-   */
-  function addIndent(indent, str) {
-    return str
-      .split("\n")
-      .map(s => " ".repeat(indent) + s)
-      .join("\n");
   }
 
   /**
@@ -165,8 +175,22 @@ async function preProcess(input, options) {
   }
 
   function rel(p) {
-    return path.relative(baseDir, p);
+    return asUnixPath(path.relative(baseDir, p));
   }
+}
+
+function includeErrorContext(error, parentFile, substitutionMap, cache) {
+  const errMatch = error.message.match(/open (?:'|")(.*)(?:'|")/);
+  const filePath = errMatch[1].trim();
+  let context;
+  if (substitutionMap.has(filePath)) {
+    const { match } = substitutionMap.get(filePath);
+    const pos = cache.get(parentFile).search(match);
+    if (pos !== -1) {
+      context = getContext(pos, parentFile, cache, true);
+    }
+  }
+  return context;
 }
 
 module.exports = { preProcess };

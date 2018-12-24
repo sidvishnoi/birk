@@ -1,9 +1,9 @@
 // @ts-check
-const { splitString } = require("./utils");
+const { splitString, getContext, BirkError } = require("./utils");
 
 class Stack {
   constructor() {
-    this.items = [0];
+    this.items = [];
   }
 
   push(val) {
@@ -25,29 +25,32 @@ class Stack {
 }
 
 /**
- * @typedef {{type: "raw", val: string, start: number, end: number, _pos_: number}} RawToken
- * @typedef {{type: "tag", val: string, start: number, end: number, _pos_: number, name: string, args: string[]}} TagToken
- * @typedef {{type: "object", val: string, start: number, end: number,  _pos_: number, name: string, filters: Array<{name: string, args: string[]}>}} ObjectToken
+ * @typedef {{type: "raw", val: string, start: number, end: number, fpos: number}} RawToken
+ * @typedef {{type: "tag", val: string, start: number, end: number, fpos: number, name: string, args: string[]}} TagToken
+ * @typedef {{type: "object", val: string, start: number, end: number,  fpos: number, name: string, filters: Array<{name: string, args: string[]}>}} ObjectToken
  * @typedef {RawToken | TagToken | ObjectToken} Token
  * @param {string} input
  */
-function tokenize(input) {
+function tokenize(input, fileMap) {
   /** @type {Token[]} */
   const tokens = [];
   const lookUpMap = new Map([["object", "{{"], ["tag", "{%"], ["_inc_", "{#"]]);
   const posStack = new Stack();
   let iter = 0;
-  let count = 10;
+  let activeFile = new Stack();
+
+  // seems a fine limit to avoid infinite loop
+  let MAX_TOKEN_COUNT = 4000;
 
   while (lookUpMap.size !== 0) {
     const { type, beg } = lookout();
     if (iter !== beg) {
       tokens.push({
         type: "raw",
-        _pos_: posStack.v,
+        fpos: posStack.v,
         val: input.slice(iter, beg),
         start: iter,
-        end: beg
+        end: beg,
       });
       posStack.v += beg - iter;
     }
@@ -60,7 +63,9 @@ function tokenize(input) {
     } else if (type === "_inc_") {
       iter = asInclude(beg);
     }
-    if (!count--) break;
+    if (!MAX_TOKEN_COUNT--) {
+      throw new Error("MAX_TOKEN_COUNT limit exceeded during tokenization.");
+    }
   }
 
   return tokens;
@@ -82,7 +87,7 @@ function tokenize(input) {
 
   /** @param {number} from search start position */
   function asObject(from) {
-    const end = input.indexOf("}}", from);
+    const end = search("}}", from);
     const match = input.slice(from + 2, end).trim();
     const [name, ..._filters] = splitString(match, "|");
 
@@ -95,89 +100,92 @@ function tokenize(input) {
     }
     tokens.push({
       type: "object",
-      _pos_: posStack.v,
+      fpos: posStack.v,
       name: name.trim(),
       filters,
       val: input.slice(from, end + 2),
       start: from,
-      end: end + 2
+      end: end + 2,
     });
     return end + 2;
   }
 
   /** @param {number} from search start position */
   function asTag(from) {
-    const end = input.indexOf("%}", from);
+    const end = search("%}", from, "ending tag token");
     const match = input.slice(from + 2, end).trim();
     const [name, ...args] = splitString(match, " ");
     tokens.push({
       type: "tag",
-      _pos_: posStack.v,
+      fpos: posStack.v,
       name: name.trim(),
       args,
       val: input.slice(from, end + 2),
       start: from,
-      end: end + 2
+      end: end + 2,
     });
     return end + 2;
   }
 
   /** @param {number} from search start position */
   function asInclude(from) {
-    const end = input.indexOf("#}", from);
+    const end = search("#}", from);
     const val = input.slice(from + 2, end);
     const [type, length, file] = splitString(val.trim(), " ", 3);
 
-    let _pos_;
+    let fpos;
     if (type === "beg") {
       posStack.v += Number(length);
       posStack.push(0);
-      _pos_ = from;
+      activeFile.push(file);
+      fpos = from;
     } else {
-      _pos_ = posStack.pop();
+      fpos = posStack.pop();
+      activeFile.pop();
     }
 
     tokens.push({
       type: "tag",
-      _pos_,
+      fpos,
       name: "_file_",
       args: [type, file],
       val: input.slice(from, end + 2),
       start: from,
-      end: end + 2
+      end: end + 2,
     });
     return end + 2;
   }
+
+  /**
+   * @param {string} needle string searching  for
+   * @param {number} start start searching from index
+   */
+  function search(needle, start, needleName = "") {
+    const i = input.indexOf(needle, start + 2);
+    if (i === -1) {
+      const context = getContext(posStack.v, activeFile.v, fileMap, true);
+      throw new BirkError(
+        `Malformed token. Failed to find ${needleName + ` "${needle}"`}.`,
+        "BirkParserError",
+        context
+      );
+    }
+
+    for (const bad of ["{{", "{%"]) {
+      const j = input.indexOf(bad, start + 2);
+      if (j === -1) continue;
+      if (j < i) {
+        const context = getContext(posStack.v + 2, activeFile.v, fileMap);
+        throw new BirkError(
+          `Malformed token. Failed to find ${needleName +
+            ` "${needle}"`}. Found "${bad}" instead.`,
+          "BirkParserError",
+          context
+        );
+      }
+    }
+    return i;
+  }
 }
-
-// function throwParseError(str, message, pos) {
-//   const contextLength = [3, 3];
-//   let posStart = pos;
-//   let activeLine;
-//   while (contextLength[0] > 0) {
-//     const j = str.lastIndexOf("\n", posStart);
-//     if (j === -1) break;
-//     if (!activeLine) activeLine = j;
-//     posStart = j - 1;
-//     --contextLength[0];
-//   }
-
-//   let posEnd = pos;
-//   while (contextLength[1] > 0) {
-//     const j = str.indexOf("\n", posEnd);
-//     if (j === -1) break;
-//     if (!activeLine) activeLine = j;
-//     posEnd = j + 1;
-//     --contextLength[1];
-//   }
-
-//   const context =
-//     str.slice(posStart, activeLine + 1) +
-//     ">>> " +
-//     str.slice(activeLine + 1, posEnd + 1);
-
-//   console.log({ posStart, posEnd, contextLength, activeLine });
-//   throw new Error(`${message}\n${context}`);
-// }
 
 module.exports = { tokenize };
