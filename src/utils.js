@@ -11,21 +11,12 @@ function getIdentifierBase(str) {
   return str;
 }
 
-class BirkError extends Error {
-  constructor(message, name = "", context = "") {
-    super(message);
-    this.name = name || "BirkError";
-    this.message += `\n${context}`;
-    this.context = context;
-  }
-}
-
 /**
- * @param {string} lookingFor
+ * @param {string} tag
  * @param {import("./codegen.js").State} state
  * @returns {number} index of `lookingFor` in `state.tokens`
  */
-function findTag(lookingFor, { idx, tokens }) {
+function findTag(tag, { idx, tokens }) {
   /** @type string[] */
   const stack = [];
   const blockTags = new Set(["if", "for", "unless", "js", "comment", "raw"]);
@@ -33,7 +24,7 @@ function findTag(lookingFor, { idx, tokens }) {
     if (tokens[idx].type === "tag") {
       /** @type {import("./codegen.js").TagToken} */
       const { name } = tokens[idx];
-      if (name === lookingFor) {
+      if (name === tag) {
         if (!stack.length) return idx;
         // found tag!
         else throw new Error(`invalid nesting at token #${idx}`);
@@ -45,7 +36,7 @@ function findTag(lookingFor, { idx, tokens }) {
       }
     }
   }
-  throw new Error(`matching tag not found: "${lookingFor}"`);
+  throw new Error(`matching tag not found: "${tag}"`);
 }
 
 /**
@@ -84,51 +75,37 @@ function getContext(pos, file, fileMap, nextLine = false, contextLength = 4) {
   const str = fileMap.get(file);
   const n = nextLine ? str.indexOf("\n", pos) : -1;
 
-  function backward() {
+  function getPos(str, from, forward) {
     let remaining = contextLength;
-    let posStart = pos;
     let p;
     while (remaining) {
-      const j = str.lastIndexOf("\n", posStart);
+      const j = forward ? str.indexOf("\n", from) : str.lastIndexOf("\n", from);
       p = j;
       if (j === -1) {
-        p = 0;
+        p = forward ? str.length : 0;
         break;
       }
-      posStart = j - 1;
+      from = forward ? j + 1 : j - 1;
       --remaining;
     }
-    return str.slice(p, n !== -1 ? n : pos - 1).trimRight();
+    return p;
   }
 
-  function forward() {
-    let remaining = contextLength;
-    let posEnd = pos;
-    let p;
-    while (remaining) {
-      const j = str.indexOf("\n", posEnd);
-      p = j;
-      if (j === -1) {
-        p = str.length;
-        break;
-      }
+  const pb = getPos(str, pos, false);
+  const pf = getPos(str, pos, true);
 
-      posEnd = j + 1;
-      --remaining;
-    }
-    return str
-      .slice(n !== -1 ? n + 1 : pos - 1, p)
-      .replace(/^\n/, "")
-      .trimRight();
-  }
+  const bc = str.slice(pb, n !== -1 ? n : pos - 1).trimRight();
+  const fc = str
+    .slice(n !== -1 ? n + 1 : pos - 1, pf)
+    .replace(/^\n/, "")
+    .trimRight();
 
-  const bc = backward();
-  const markerLen = bc.slice(bc.lastIndexOf("\n"), bc.length).length / 3;
-  const fc = forward();
   const msg = `>>> Position ${pos} of "${file}" <<<`;
+  const markerLen = bc.slice(bc.lastIndexOf("\n"), bc.length).length / 3;
   const markers = " ^^".repeat(Math.ceil(markerLen));
   return `${msg}\n\n${bc}\n${markers}\n${fc}`;
 }
+
 
 function asUnixPath(str) {
   if (/^\\\\\?\\/.test(str) || /[^\u0000-\u0080]+/.test(str)) {
@@ -150,6 +127,29 @@ function addIndent(indent, str, skipLine = -1) {
     .join("\n");
 }
 
+class Stack extends Array {
+  constructor() {
+    super();
+  }
+
+  set v(val) {
+    this[this.length - 1] = val;
+  }
+
+  get v() {
+    return this[this.length - 1];
+  }
+}
+
+class BirkError extends Error {
+  constructor(message, name = "", context = "") {
+    super(message);
+    this.name = name || "BirkError";
+    this.message += `\n${context}`;
+    this.context = context;
+  }
+}
+
 module.exports = {
   addIndent,
   asUnixPath,
@@ -158,4 +158,5 @@ module.exports = {
   getContext,
   getIdentifierBase,
   splitString,
+  Stack,
 };
