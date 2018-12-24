@@ -21,7 +21,7 @@ async function preProcess(input, options) {
   const file = rel(fileName);
   cache.set(file, input);
   let processedText = await substitute(input, file);
-  processedText = wrapDebugInfo(processedText, 0, file, file);
+  // processedText = wrapDebugInfo(processedText, 0, file, file);
 
   const dependencies = new Set([].concat(...[...dependencyTree.values()]));
 
@@ -158,9 +158,9 @@ async function preProcess(input, options) {
    * @param {FilePath} parent
    */
   function wrapDebugInfo(content, length, current, parent) {
-    let wrapped = `{# beg ${length} ${current} #}\n`;
+    let wrapped = `{# beg ${length} ${current} #}`;
     wrapped += content.trim();
-    wrapped += `\n{# end ${0} ${parent} #}`;
+    wrapped += `{# end ${0} ${parent} #}`;
     return wrapped;
   }
 

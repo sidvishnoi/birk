@@ -69,9 +69,13 @@ function main(tokens) {
   };
 
   state.buf.addPlain(`let _buf_ = "", _pos_, _file_;`);
+  state.buf.addPlain(`try {`);
   generateCode(tokens, state);
   handleMixins(state);
   // state.buf.addPlain("return _buf_;");
+  state.buf.addPlain(`} catch (err) {`);
+  state.buf.addPlain(`console.error({ _pos_, _file_ }); throw err;`);
+  state.buf.addPlain(`}`);
   state.buf.addPlain("console.log(_buf_);");
 
   return { code: state.buf.toString() };
@@ -88,9 +92,7 @@ function generateCode(tokens, state) {
     const token = tokens[state.idx];
     switch (token.type) {
       case "raw":
-        const shouldTrim =
-          state.idx > 1 && tokens[state.idx - 1].type === "tag";
-        const value = shouldTrim ? token.val.trimStart() : token.val;
+        const value = token.val;
         if (value) {
           state.buf.addDebug(token);
           state.buf.add(value, true);

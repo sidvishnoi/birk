@@ -35,7 +35,7 @@ function tokenize(input) {
   /** @type {Token[]} */
   const tokens = [];
   const lookUpMap = new Map([["object", "{{"], ["tag", "{%"], ["_inc_", "{#"]]);
-  const posStack = new Stack;
+  const posStack = new Stack();
   let iter = 0;
   let count = 10;
 
@@ -44,18 +44,19 @@ function tokenize(input) {
     if (iter !== beg) {
       tokens.push({
         type: "raw",
+        _pos_: posStack.v,
         val: input.slice(iter, beg),
         start: iter,
-        end: beg,
-        _pos_: posStack.v,
+        end: beg
       });
+      posStack.v += beg - iter;
     }
     if (type === "object") {
       iter = asObject(beg);
-      // posStack.v = iter - posStack.v;
+      posStack.v += iter - beg;
     } else if (type === "tag") {
       iter = asTag(beg);
-      // posStack.v = iter - posStack.v;
+      posStack.v += iter - beg;
     } else if (type === "_inc_") {
       iter = asInclude(beg);
     }
@@ -94,12 +95,12 @@ function tokenize(input) {
     }
     tokens.push({
       type: "object",
+      _pos_: posStack.v,
       name: name.trim(),
       filters,
       val: input.slice(from, end + 2),
       start: from,
-      end: end + 2,
-      _pos_: posStack.v,
+      end: end + 2
     });
     return end + 2;
   }
@@ -111,12 +112,12 @@ function tokenize(input) {
     const [name, ...args] = splitString(match, " ");
     tokens.push({
       type: "tag",
+      _pos_: posStack.v,
       name: name.trim(),
       args,
       val: input.slice(from, end + 2),
       start: from,
-      end: end + 2,
-      _pos_: posStack.v,
+      end: end + 2
     });
     return end + 2;
   }
@@ -126,27 +127,28 @@ function tokenize(input) {
     const end = input.indexOf("#}", from);
     const val = input.slice(from + 2, end);
     const [type, length, file] = splitString(val.trim(), " ", 3);
+
+    let _pos_;
     if (type === "beg") {
-      posStack.push(Number(length));
+      posStack.v += Number(length);
+      posStack.push(0);
+      _pos_ = from;
     } else {
-      from = end - from + 2 - posStack.v;
-      posStack.pop();
+      _pos_ = posStack.pop();
     }
+
     tokens.push({
       type: "tag",
+      _pos_,
       name: "_file_",
       args: [type, file],
-      val,
+      val: input.slice(from, end + 2),
       start: from,
-      end: end + 2,
-      _pos_: from,
+      end: end + 2
     });
-    console.log(posStack);
-
     return end + 2;
   }
 }
-
 
 // function throwParseError(str, message, pos) {
 //   const contextLength = [3, 3];
