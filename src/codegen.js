@@ -23,6 +23,7 @@ const runtime = require("./runtime");
  *  tokens: Token[],
  *  fpos: number,
  *  file: string,
+ *  warnings: Array<{ message: string, context: string }>,
  * }} State
  */
 
@@ -79,6 +80,7 @@ function main(tokens, fileMap, options) {
     fileMap,
     fpos: 0,
     file: "",
+    warnings: [],
     tokens,
   };
 
@@ -119,6 +121,7 @@ function main(tokens, fileMap, options) {
     locals: state.locals,
     localsFullNames: state.localsFullNames,
     context: state.context,
+    warnings: state.warnings,
   };
 }
 
@@ -228,15 +231,15 @@ function inlineRuntime(state, runtime) {
   if (state.filters.size) {
     r.push("filters: {");
     for (const [filter, [fpos, file]] of state.filters.entries()) {
-      if (!filters.hasOwnProperty(filter)) {
-        const ctx = errorContext(fpos, file, state.fileMap);
-        throw new BirkError(
-          `Cannot find filter "${filter}" while inlining.`,
-          "BirkCompileError",
-          ctx
-        );
+      const isValid = filters.hasOwnProperty(filter);
+      if (isValid) {
+        r.push(`${filter}: ${fmt(filters[filter].toString())},`);
+        continue;
       }
-      r.push(`${filter}: ${fmt(filters[filter].toString())},`);
+      state.warnings.push({
+        message: `Filter "${filter}" was not provided during compile.`,
+        context: context(fpos, file, state.fileMap),
+      });
     }
     r.push("},");
   }
