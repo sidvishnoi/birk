@@ -110,7 +110,8 @@ function errorContext(pos, file, fileMap, ctx = 2) {
       Math.max(lineNum - ctx, 0),
       Math.min(lineNum + ctx + 1, lines.length)
     )
-    .join("\n") + `\n${"File".padStart(5)}| ${file}`;
+    .concat(` File| ${file}:${lineNum + 1}:${pos - p + 1}`)
+    .join("\n");
 }
 
 function errorContext2({ fpos, file, fileMap }, ctx = 2) {
