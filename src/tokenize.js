@@ -73,7 +73,7 @@ module.exports.tokenize = function tokenize(input, fileMap) {
     const filters = [];
     for (const filter of _filters) {
       const [filterName, _args] = splitString(filter, ":");
-      const args = _args ? splitString(_args, ",").map(arg => arg.trim()) : [];
+      const args = _args ? splitString(_args, ",").filter(s => s.trim()) : [];
       filters.push({ name: filterName.trim(), args });
     }
 
@@ -94,7 +94,8 @@ module.exports.tokenize = function tokenize(input, fileMap) {
   function eatTag(from) {
     const end = search("%}", from, "ending tag token");
     const match = input.slice(from + 2, end).trim();
-    const [name, ...args] = splitString(match, " ");
+    const [name, ..._args] = splitString(match, " ");
+    const args = _args.filter(s => s.trim());
     tokens.push({
       type: "tag",
       fpos: ptrStack.v,

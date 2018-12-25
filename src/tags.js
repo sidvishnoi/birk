@@ -3,7 +3,7 @@
  * @typedef {import("./tokenize.js").TagToken} Token
  */
 
-const { findTag, splitString } = require("./utils");
+const { findTag, splitString, getIdentifierBase } = require("./utils");
 
 module.exports.assign = (token, state) => {
   const [name] = token.args;
@@ -117,8 +117,14 @@ module.exports.for = (token, state) => {
   findTag("endfor", state);
 
   const {
-    type, front, join, iterable, offset, limit, indexer
+    type, front, join, ids, iterable, offset, limit, indexer
   } = getLoopComponents(token.args);
+
+  if (!/^(\[|\(|\{)/.test(iterable)) {
+    const id = getIdentifierBase(iterable);
+    state.locals.add(id);
+    state.localsFullNames.add(iterable);
+  }
 
   let output = `for (const ${front} ${join} `;
 
@@ -191,7 +197,8 @@ function getLoopComponents(args) {
   if (pos === -1) pos = args.indexOf("in");
   if (pos === -1) throw new Error("Invalid for loop");
 
-  const front = args.slice(0, pos);
+  let front = args.slice(0, pos).join(" ");
+  const ids = new Set();
 
   let type;
   let indexer;
@@ -201,17 +208,26 @@ function getLoopComponents(args) {
   const idEnd = args[pos - 1].slice(-1);
 
   let canLimitOffset = false;
-  if (pos === 2 && idStart !== "[" && idStart !== "{") {
+
+  if (front.includes(",") && idStart !== "[" && idStart !== "{") {
     // for key, val of object
     // for idx, val of array
     canLimitOffset = true;
     type = 2;
-    indexer = front[0].replace(",", "").trim();
-    front.unshift("[");
-    front.push("]");
+    const its = front.split(/\s*,\s*/);
+    its.forEach(i => ids.add(i));
+    indexer = its[0];
+    front = `[ ${front} ]`;
   } else {
-    if (idStart === "{" && idEnd === "}") type = 1;
-    else if (idStart === "[" && idEnd === "]") type = 1;
+    if (
+      (idStart === "{" && idEnd === "}") ||
+      (idStart === "[" && idEnd === "]")
+    ) {
+      type = 1;
+      front.slice(1, -1).split(/\s*,\s*/).forEach(i => ids.add(i.trim()));
+    } else {
+      ids.add(front);
+    }
   }
 
   const back = args.slice(pos + 1).join(" ");
@@ -233,7 +249,8 @@ function getLoopComponents(args) {
   return {
     type,
     indexer,
-    front: front.join(" "),
+    front,
+    ids,
     join: args[pos],
     iterable,
     offset,
