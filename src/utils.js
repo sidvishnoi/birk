@@ -186,10 +186,48 @@ class VariableContext extends Array {
   }
 }
 
+class Buffer {
+  constructor(debug = true) {
+    /** @type {string[]} */
+    this.buf = [];
+    this.debug = debug;
+  }
+
+  /** @param {string} str */
+  add(str, quoted = false) {
+    this.buf.push(
+      `_buf_ += ${quoted ? `${JSON.stringify(str)}` : str};`
+      // `_buf_ += ${quoted ? `\`${str}\`` : str};`
+    );
+  }
+
+  /** @param {State} state */
+  addDebug(state) {
+    state.fpos = state.tokens[state.idx].fpos;
+    if (!this.debug) return;
+    let debugStr = `_pos_ = ${state.fpos};`;
+    if (this.buf[this.buf.length - 1].startsWith("_pos_")) {
+      this.buf[this.buf.length - 1] = debugStr;
+    } else {
+      this.buf.push(debugStr);
+    }
+  }
+
+  /** @param {string} str */
+  addPlain(str) {
+    this.buf.push(str);
+  }
+
+  toString() {
+    return this.buf.join("\n");
+  }
+}
+
 module.exports = {
   addIndent,
   asUnixPath,
   BirkError,
+  Buffer,
   errorContext,
   errorContext2,
   findTag,

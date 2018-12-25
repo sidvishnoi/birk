@@ -2,6 +2,7 @@
 
 const {
   BirkError,
+  Buffer,
   errorContext2,
   getIdentifierBase,
   VariableContext,
@@ -13,56 +14,19 @@ const runtime = require("./runtime");
  * @typedef {import("./tokenize").Token} Token
  * @typedef {{
  *  idx: number,
+ *  fpos: number,
+ *  file: string,
  *  buf: Buffer,
  *  locals: Set<string>,
  *  localsFullNames: Set<string>,
  *  filters: Map<string, [number, string]>,
  *  context: VariableContext,
- *  mixins: Map<string, { params: string[], tokens: Token[] }>,
  *  fileMap: Map<string, string>,
- *  tokens: Token[],
- *  fpos: number,
- *  file: string,
  *  warnings: Array<{ message: string, context: string }>,
+ *  mixins: Map<string, { params: string[], tokens: Token[] }>,
+ *  tokens: Token[],
  * }} State
  */
-
-class Buffer {
-  constructor(debug = true) {
-    /** @type {string[]} */
-    this.buf = [];
-    this.debug = debug;
-  }
-
-  /** @param {string} str */
-  add(str, quoted = false) {
-    this.buf.push(
-      `_buf_ += ${quoted ? `${JSON.stringify(str)}` : str};`
-      // `_buf_ += ${quoted ? `\`${str}\`` : str};`
-    );
-  }
-
-  /** @param {State} state */
-  addDebug(state) {
-    state.fpos = state.tokens[state.idx].fpos;
-    if (!this.debug) return;
-    let debugStr = `_pos_ = ${state.fpos};`;
-    if (this.buf[this.buf.length - 1].startsWith("_pos_")) {
-      this.buf[this.buf.length - 1] = debugStr;
-    } else {
-      this.buf.push(debugStr);
-    }
-  }
-
-  /** @param {string} str */
-  addPlain(str) {
-    this.buf.push(str);
-  }
-
-  toString() {
-    return this.buf.join("\n");
-  }
-}
 
 /**
  * @param {Token[]} tokens
