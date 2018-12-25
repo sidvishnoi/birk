@@ -22,7 +22,7 @@ module.exports.capture = (token, state) => {
 
   let capturedValue = "";
   for (let i = start; i < end; ++i) {
-    state.buf.addDebug(state.tokens[i]);
+    state.buf.addDebug(state);
     capturedValue += state.tokens[i].val;
   }
 
@@ -41,10 +41,12 @@ module.exports.raw = (token, state) => {
   const start = state.idx + 1;
   const end = findTag("endraw", state);
   for (let i = start; i < end; ++i) {
-    state.buf.addDebug(state.tokens[i]);
+    state.idx = i;
+    state.buf.addDebug(state);
     state.buf.add(state.tokens[i].val, true);
   }
-  state.buf.addDebug(state.tokens[end]);
+  state.idx = end;
+  state.buf.addDebug(state);
   state.idx = end + 1;
 };
 
@@ -52,10 +54,11 @@ module.exports.js = (token, state) => {
   const start = state.idx + 1;
   const end = findTag("endjs", state);
   for (let i = start; i < end; ++i) {
-    state.buf.addDebug(state.tokens[i]);
+    state.buf.addDebug(state);
     state.buf.addPlain(state.tokens[i].val.trim());
   }
-  state.buf.addDebug(state.tokens[end]);
+  state.idx = end;
+  state.buf.addDebug(state);
   state.idx = end + 1;
 };
 
@@ -84,23 +87,19 @@ module.exports.endif = blockEnd;
 module.exports.case = (token, state) => {
   findTag("endcase", state);
   state.buf.addPlain(`switch (${token.args[0]}) {`);
-  state.idx += 1;
+  const next = findTag("when", state);
+  state.idx = next;
 };
 module.exports.when = (token, state) => {
   findTag("endcase", state);
-  if (state.buf.buf[state.buf.buf.length - 1].trim().endsWith(";")) {
-    // assume previous was a case/when
-    state.buf.addPlain("break;");
+  if (!state.buf.buf[state.buf.buf.length - 1].startsWith("switch")) {
+    state.buf.buf[state.buf.buf.length - 1] = "";
   }
   state.buf.addPlain(`case ${token.args[0]}:`);
   state.idx++;
 };
 module.exports.default = (token, state) => {
   findTag("endcase", state);
-  if (state.buf.buf[state.buf.buf.length - 1].trim().endsWith(";")) {
-    // assume previous was a case/when
-    state.buf.addPlain("break;");
-  }
   state.buf.addPlain(`default:`);
   state.idx++;
 };
@@ -133,9 +132,9 @@ module.exports.for = (token, state) => {
 
   if (offset || limit) {
    output += "if (";
-   if (offset) output += `${indexer} > ${offset}`;
+   if (offset !== undefined) output += `${indexer} >= ${offset}`;
    if (offset && limit) output += " && ";
-   if (limit) output += `${indexer} < ${limit}`;
+   if (limit !== undefined) output += `${indexer} < ${limit}`;
    output += ") ";
   }
   output += "{";
@@ -153,6 +152,11 @@ module.exports.endfor = blockEnd;
 module.exports.break = simpleToken;
 module.exports.continue = simpleToken;
 
+module.exports.trim = (token, state) => {
+  state.tokens[state.idx + 1].val = state.tokens[state.idx + 1].val.trim();
+  state.idx += 1;
+};
+
 /** @param {Token} token, @param {State} state */
 module.exports.mixin = (token, state) => {
   const start = state.idx;
@@ -165,7 +169,9 @@ module.exports.mixin = (token, state) => {
 };
 
 module.exports._file_ = (token, state) => {
-  state.buf.addPlain(`_file_ = "${token.args[1]}";`);
+  const file = token.args[1];
+  state.file = file;
+  state.buf.addPlain(`_file_ = "${file}";`);
   state.idx += 1;
 };
 

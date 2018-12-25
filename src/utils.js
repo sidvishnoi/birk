@@ -16,7 +16,9 @@ function getIdentifierBase(str) {
  * @param {import("./codegen.js").State} state
  * @returns {number} index of `lookingFor` in `state.tokens`
  */
-function findTag(tag, { idx, tokens }) {
+function findTag(tag, state) {
+  const { tokens } = state;
+  let { idx } = state;
   /** @type string[] */
   const stack = [];
   const blockTags = new Set(["if", "for", "unless", "js", "comment", "raw"]);
@@ -25,18 +27,30 @@ function findTag(tag, { idx, tokens }) {
       /** @type {import("./codegen.js").TagToken} */
       const { name } = tokens[idx];
       if (name === tag) {
-        if (!stack.length) return idx;
-        // found tag!
-        else throw new Error(`invalid nesting at token #${idx}`);
+        if (!stack.length) {
+          return idx; // found tag!
+        } else {
+          throw new BirkError(`Invalid nesting.`, '', errorContext2(state, 4));
+        }
       } else if (name.startsWith("end")) {
-        if (stack[stack.length - 1] === name) stack.pop();
-        else throw new Error(`invalid nesting at token #${idx}`);
+        if (stack[stack.length - 1] === name) {
+          stack.pop();
+        } else {
+          throw new BirkError(`Invalid nesting.`, '', errorContext2(state, 4));
+        }
       } else if (blockTags.has(name)) {
         stack.push("end" + name);
       }
     }
   }
-  throw new Error(`matching tag not found: "${tag}"`);
+
+  let msg = `matching tag not found: "${tag}"`;
+  let ctx;
+  if (tag.startsWith("end")) {
+    msg = `tag ${state.tokens[state.idx].val} not closed`;
+    ctx = errorContext2(state);
+  }
+  throw new BirkError(msg, "BirkCompileError", ctx);
 }
 
 /**
@@ -71,41 +85,37 @@ function splitString(str, ch, limit = 999) {
   return result;
 }
 
-function getContext(pos, file, fileMap, nextLine = false, contextLength = 4) {
-  const str = fileMap.get(file);
-  const n = nextLine ? str.indexOf("\n", pos) : -1;
-
-  function getPos(str, from, forward) {
-    let remaining = contextLength;
-    let p;
-    while (remaining) {
-      const j = forward ? str.indexOf("\n", from) : str.lastIndexOf("\n", from);
-      p = j;
-      if (j === -1) {
-        p = forward ? str.length : 0;
-        break;
-      }
-      from = forward ? j + 1 : j - 1;
-      --remaining;
-    }
-    return p;
+/**
+ * create a error context based on `_pos_`, `_file_`, `fileMap`
+ * @param {number} pos
+ * @param {string} file
+ * @param {Map<string, string>} fileMap
+ * @param {number} ctx number of lines above and below the error line
+ */
+function errorContext(pos, file, fileMap, ctx = 2) {
+  const lines = fileMap.get(file).split("\n");
+  let p = 0;
+  let lineNum = 0;
+  for (const s of lines) {
+    if (p + s.length + 1 > pos) break;
+    p += s.length + 1;
+    lineNum += 1;
   }
-
-  const pb = getPos(str, pos, false);
-  const pf = getPos(str, pos, true);
-
-  const bc = str.slice(pb, n !== -1 ? n : pos - 1).trimRight();
-  const fc = str
-    .slice(n !== -1 ? n + 1 : pos - 1, pf)
-    .replace(/^\n/, "")
-    .trimRight();
-
-  const msg = `>>> Position ${pos} of "${file}" <<<`;
-  const markerLen = bc.slice(bc.lastIndexOf("\n"), bc.length).length / 3;
-  const markers = " ^^".repeat(Math.ceil(markerLen));
-  return `${msg}\n\n${bc}\n${markers}\n${fc}`;
+  return lines
+    .map((s, i) => {
+      const beg = i === lineNum ? `>>${" "}${i + 1}` : `${i + 1}`;
+      return `${beg.padStart(5)}|${" "}${s}`;
+    })
+    .slice(
+      Math.max(lineNum - ctx, 0),
+      Math.min(lineNum + ctx + 1, lines.length)
+    )
+    .join("\n") + `\n${"File".padStart(5)}| ${file}`;
 }
 
+function errorContext2({ fpos, file, fileMap }, ctx = 2) {
+  return errorContext(fpos, file, fileMap, ctx);
+}
 
 function asUnixPath(str) {
   if (/^\\\\\?\\/.test(str) || /[^\u0000-\u0080]+/.test(str)) {
@@ -154,8 +164,9 @@ module.exports = {
   addIndent,
   asUnixPath,
   BirkError,
+  errorContext,
+  errorContext2,
   findTag,
-  getContext,
   getIdentifierBase,
   splitString,
   Stack,

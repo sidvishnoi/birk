@@ -1,5 +1,5 @@
 // @ts-check
-const { splitString, getContext, BirkError, Stack } = require("./utils");
+const { splitString, errorContext, BirkError, Stack } = require("./utils");
 
 /**
  * @typedef {{type: "raw", val: string, start: number, end: number, fpos: number}} RawToken
@@ -147,11 +147,11 @@ module.exports.tokenize = function tokenize(input, fileMap) {
   function search(needle, start, needleName = "") {
     const i = input.indexOf(needle, start + 2);
     if (i === -1) {
-      const context = getContext(ptrStack.v, fileStack.v, fileMap, true);
+      const ctx = errorContext(ptrStack.v, fileStack.v, fileMap);
       throw new BirkError(
         `Malformed token. Failed to find ${needleName + ` "${needle}"`}.`,
         "BirkParserError",
-        context
+        ctx
       );
     }
 
@@ -159,12 +159,12 @@ module.exports.tokenize = function tokenize(input, fileMap) {
       const j = input.indexOf(bad, start + 2);
       if (j === -1) continue;
       if (j < i) {
-        const context = getContext(ptrStack.v + 2, fileStack.v, fileMap);
+        const ctx = errorContext(ptrStack.v + 2, fileStack.v, fileMap);
         throw new BirkError(
           `Malformed token. Failed to find ${needleName +
             ` "${needle}"`}. Found "${bad}" instead.`,
           "BirkParserError",
-          context
+          ctx
         );
       }
     }

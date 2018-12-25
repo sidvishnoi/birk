@@ -4,7 +4,7 @@ const path = require("path");
 const { readFile: _readFile } = require("fs");
 const readFile = require("util").promisify(_readFile);
 
-const { asUnixPath, addIndent, BirkError, getContext } = require("./utils");
+const { asUnixPath, addIndent, BirkError, errorContext } = require("./utils");
 
 // {% include "filename" %}
 const regex = /{%\s*include (?:"|'|)([a-zA-z0-9_\-\.\/\s]+)(?:"|'|)\s*%}/;
@@ -168,7 +168,7 @@ module.exports.preProcess = async function preProcess(input, options) {
       const { match } = substitutionMap.get(filePath);
       const pos = fileMap.get(parentFile).search(match);
       if (pos !== -1) {
-        context = getContext(pos, parentFile, fileMap, true);
+        context = errorContext(pos, parentFile, fileMap);
       }
     }
     return context;
