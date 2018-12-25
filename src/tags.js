@@ -1,195 +1,204 @@
 // @ts-check
 
+const { findTag, splitString, getIdentifierBase } = require("./utils");
+
 /**
  * @typedef {import("./codegen.js").State} State
  * @typedef {import("./tokenize.js").TagToken} Token
+ * @typedef { (token: Token, state: State) => void } Tag
+ * @type {{ [name: string]: Tag }}
  */
-
-const { findTag, splitString, getIdentifierBase } = require("./utils");
-
-module.exports.assign = (token, state) => {
-  const [name] = token.args;
-  if (state.context.has(name)) {
-    state.buf.addPlain(`${token.args.join(" ")};`);
-  } else {
-    state.context.add(name);
-    state.buf.addPlain(`let ${token.args.join(" ")};`);
-  }
-  state.idx += 1;
-};
-
-module.exports.capture = (token, state) => {
-  const end = findTag("endcapture", state);
-
-  let capturedValue = "";
-  for (let i = state.idx + 1; i < end; ++i) {
-    state.buf.addDebug(state);
-    capturedValue += state.tokens[i].val;
-  }
-
-  const [name] = token.args;
-  if (state.context.has(name)) {
-    state.buf.addPlain(`${name} = \`${capturedValue}\`;`);
-  } else {
-    state.context.add(name);
-    state.buf.addPlain(`let ${name} = \`${capturedValue}\`;`);
-  }
-
-  state.idx = end + 1;
-};
-
-module.exports.raw = (token, state) => {
-  const start = state.idx + 1;
-  const end = findTag("endraw", state);
-  for (let i = start; i < end; ++i) {
-    state.idx = i;
-    state.buf.addDebug(state);
-    state.buf.add(state.tokens[i].val, true);
-  }
-  state.idx = end;
-  state.buf.addDebug(state);
-  state.idx = end + 1;
-};
-
-module.exports.js = (token, state) => {
-  const start = state.idx + 1;
-  const end = findTag("endjs", state);
-  for (let i = start; i < end; ++i) {
-    state.buf.addDebug(state);
-    state.buf.addPlain(state.tokens[i].val.trim());
-  }
-  state.idx = end;
-  state.buf.addDebug(state);
-  state.idx = end + 1;
-};
-
-module.exports.comment = (token, state) => {
-  const end = findTag("endcomment", state);
-  state.idx = end + 1;
-};
-
-module.exports.if = (token, state) => {
-  findTag("endif", state);
-  state.context.create();
-  state.buf.addPlain(`if (${token.args.join(" ")}) {`);
-  state.idx += 1;
-};
-module.exports.elseif = (token, state) => {
-  findTag("endif", state);
-  state.context.destroy();
-  state.context.create();
-  state.buf.addPlain(`} else if (${token.args.join(" ")}) {`);
-  state.idx += 1;
-};
-module.exports.else = (token, state) => {
-  findTag("endif", state);
-  state.context.destroy();
-  state.context.create();
-  state.buf.addPlain(`} else {`);
-  state.idx += 1;
-};
-module.exports.endif = blockEnd;
-
-module.exports.case = (token, state) => {
-  findTag("endcase", state);
-  state.context.create();
-  state.buf.addPlain(`switch (${token.args[0]}) {`);
-  const next = findTag("when", state);
-  state.idx = next;
-};
-module.exports.when = (token, state) => {
-  findTag("endcase", state);
-  if (!state.buf.buf[state.buf.buf.length - 1].startsWith("switch")) {
-    state.buf.buf[state.buf.buf.length - 1] = "";
-  }
-  state.buf.addPlain(`case ${token.args[0]}:`);
-  state.idx++;
-};
-module.exports.default = (token, state) => {
-  findTag("endcase", state);
-  state.buf.addPlain(`default:`);
-  state.idx++;
-};
-module.exports.endcase = blockEnd;
-
-/**
- * case1: for key in object
- * case2: for value of array
- * case3: for [el1, el2] of [[a, b], [a, b]]
- * case4: for {a, b} of [{ a, b }, { a, b }]
- * case5: for index, value of array
- * case6: for key, value of object
- */
-module.exports.for = (token, state) => {
-  findTag("endfor", state);
-  const loop = getLoopComponents(token.args);
-
-  state.context.create();
-  loop.ids.forEach(id => state.context.add(id));
-
-  const { iterable } = loop;
-  if (!/^(\[|\(|\{)/.test(iterable)) {
-    const id = getIdentifierBase(iterable);
-    if (!state.context.has(id)) {
-      state.locals.add(id);
-      state.localsFullNames.add(iterable);
+const tags = {
+  assign({ args }, state) {
+    const [name] = args;
+    if (state.context.has(name)) {
+      state.buf.addPlain(`${args.join(" ")};`);
+    } else {
+      state.context.add(name);
+      state.buf.addPlain(`let ${args.join(" ")};`);
     }
-  }
+    state.idx += 1;
+  },
 
-  let output = `for (const ${loop.front} ${loop.join} `;
+  capture({ args }, state) {
+    const end = findTag("endcapture", state);
 
-  const rangeRegex = /(\w+)\.\.(\w+)/;
-  if (rangeRegex.test(iterable)) {
-    output += createRange(iterable);
-  } else {
-    output += loop.type === 1 ? iterable : `Object.entries(${iterable})`;
-  }
-  output += ") ";
+    let capturedValue = "";
+    for (let i = state.idx + 1; i < end; ++i) {
+      state.buf.addDebug(state);
+      capturedValue += state.tokens[i].val;
+    }
 
-  if (loop.offset || loop.limit) {
-    const { offset, limit, indexer } = loop;
-    output += "if (";
-    if (offset !== undefined) output += `${indexer} >= ${offset}`;
-    if (offset && limit) output += " && ";
-    if (limit !== undefined) output += `${indexer} < ${limit}`;
+    const [name] = args;
+    if (state.context.has(name)) {
+      state.buf.addPlain(`${name} = \`${capturedValue}\`;`);
+    } else {
+      state.context.add(name);
+      state.buf.addPlain(`let ${name} = \`${capturedValue}\`;`);
+    }
+
+    state.idx = end + 1;
+  },
+
+  raw(token, state) {
+    const start = state.idx + 1;
+    const end = findTag("endraw", state);
+    for (let i = start; i < end; ++i) {
+      state.idx = i;
+      state.buf.addDebug(state);
+      state.buf.add(state.tokens[i].val, true);
+    }
+    state.idx = end;
+    state.buf.addDebug(state);
+    state.idx = end + 1;
+  },
+
+  js(token, state) {
+    const start = state.idx + 1;
+    const end = findTag("endjs", state);
+    for (let i = start; i < end; ++i) {
+      state.buf.addDebug(state);
+      state.buf.addPlain(state.tokens[i].val.trim());
+    }
+    state.idx = end;
+    state.buf.addDebug(state);
+    state.idx = end + 1;
+  },
+
+  comment(token, state) {
+    const end = findTag("endcomment", state);
+    state.idx = end + 1;
+  },
+
+  if({ args }, state) {
+    findTag("endif", state);
+    state.context.create();
+    state.buf.addPlain(`if (${args.join(" ")}) {`);
+    state.idx += 1;
+  },
+
+  elseif({ args }, state) {
+    findTag("endif", state);
+    state.context.destroy();
+    state.context.create();
+    state.buf.addPlain(`} else if (${args.join(" ")}) {`);
+    state.idx += 1;
+  },
+
+  else(token, state) {
+    findTag("endif", state);
+    state.context.destroy();
+    state.context.create();
+    state.buf.addPlain(`} else {`);
+    state.idx += 1;
+  },
+
+  endif: blockEnd,
+
+  case({ args }, state) {
+    findTag("endcase", state);
+    state.context.create();
+    state.buf.addPlain(`switch (${args[0]}) {`);
+    const next = findTag("when", state);
+    state.idx = next;
+  },
+
+  when({ args }, state) {
+    findTag("endcase", state);
+    if (!state.buf.buf[state.buf.buf.length - 1].startsWith("switch")) {
+      state.buf.buf[state.buf.buf.length - 1] = "";
+    }
+    state.buf.addPlain(`case ${args[0]}:`);
+    state.idx++;
+  },
+
+  default(token, state) {
+    findTag("endcase", state);
+    state.buf.addPlain(`default:`);
+    state.idx++;
+  },
+
+  endcase: blockEnd,
+
+  /*
+   * case1: for key in object
+   * case2: for value of array
+   * case3: for [el1, el2] of [[a, b], [a, b]]
+   * case4: for {a, b} of [{ a, b }, { a, b }]
+   * case5: for index, value of array
+   * case6: for key, value of object
+   */
+  for({ args }, state) {
+    findTag("endfor", state);
+    const loop = getLoopComponents(args);
+
+    state.context.create();
+    loop.ids.forEach(id => state.context.add(id));
+
+    const { iterable } = loop;
+    if (!/^(\[|\(|\{)/.test(iterable)) {
+      const id = getIdentifierBase(iterable);
+      if (!state.context.has(id)) {
+        state.locals.add(id);
+        state.localsFullNames.add(iterable);
+      }
+    }
+
+    let output = `for (const ${loop.front} ${loop.join} `;
+
+    const rangeRegex = /(\w+)\.\.(\w+)/;
+    if (rangeRegex.test(iterable)) {
+      output += createRange(iterable);
+    } else {
+      output += loop.type === 1 ? iterable : `Object.entries(${iterable})`;
+    }
     output += ") ";
-  }
-  output += "{";
 
-  state.buf.addPlain(output);
-  state.idx += 1; // end + 1;
+    if (loop.offset || loop.limit) {
+      const { offset, limit, indexer } = loop;
+      output += "if (";
+      if (offset !== undefined) output += `${indexer} >= ${offset}`;
+      if (offset && limit) output += " && ";
+      if (limit !== undefined) output += `${indexer} < ${limit}`;
+      output += ") ";
+    }
+    output += "{";
 
-  function createRange(str) {
-    const [_, start, end] = str.match(rangeRegex);
-    return `Array.from({ length: ${end}-${start}+1 }, (_, i) => ${start}+i)`;
-  }
-};
-module.exports.endfor = blockEnd;
+    state.buf.addPlain(output);
+    state.idx += 1; // end + 1;
 
-module.exports.break = simpleToken;
-module.exports.continue = simpleToken;
+    function createRange(str) {
+      const [_, start, end] = str.match(rangeRegex);
+      return `Array.from({ length: ${end}-${start}+1 }, (_, i) => ${start}+i)`;
+    }
+  },
+  endfor: blockEnd,
 
-module.exports.trim = (token, state) => {
-  state.tokens[state.idx + 1].val = state.tokens[state.idx + 1].val.trim();
-  state.idx += 1;
-};
+  break: simpleToken,
+  continue: simpleToken,
 
-/** @param {Token} token, @param {State} state */
-module.exports.mixin = (token, state) => {
-  const start = state.idx;
-  const end = findTag("endmixin", state);
-  const [mixinName, ...params] = token.args;
-  // mixin code is generated at later stage
-  const tokens = state.tokens.slice(start + 1, end);
-  state.mixins.set(mixinName, { params, tokens });
-  state.idx = end + 1;
-};
+  trim(token, state) {
+    state.tokens[state.idx + 1].val = state.tokens[state.idx + 1].val.trim();
+    state.idx += 1;
+  },
 
-module.exports._file_ = (token, state) => {
-  const file = token.args[1];
-  state.file = file;
-  state.buf.addPlain(`_file_ = "${file}";`);
-  state.idx += 1;
+  /** @param {Token} token, @param {State} state */
+  mixin({ args }, state) {
+    const start = state.idx;
+    const end = findTag("endmixin", state);
+    const [mixinName, ...params] = args;
+    // mixin code is generated at later stage
+    const tokens = state.tokens.slice(start + 1, end);
+    state.mixins.set(mixinName, { params, tokens });
+    state.idx = end + 1;
+  },
+
+  _file_({ args }, state) {
+    const file = args[1];
+    state.file = file;
+    state.buf.addPlain(`_file_ = "${file}";`);
+    state.idx += 1;
+  },
 };
 
 // tag specific utils
@@ -270,3 +279,5 @@ function getLoopComponents(args) {
     limit,
   };
 }
+
+module.exports = tags;
