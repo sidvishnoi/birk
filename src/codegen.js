@@ -24,6 +24,7 @@ const runtime = require("./runtime");
  *  fileMap: Map<string, string>,
  *  warnings: Array<{ message: string, context: string }>,
  *  mixins: Map<string, { params: string[], tokens: Token[] }>,
+ *  blocks: Map<string, { tokens: Token[], idx: number, file: string  }>,
  *  tokens: Token[],
  * }} State
  */
@@ -40,6 +41,7 @@ function main(tokens, fileMap, options) {
     localsFullNames: new Set(),
     filters: new Map(),
     mixins: new Map(),
+    blocks: new Map(),
     context: new VariableContext(),
     fileMap,
     fpos: 0,
@@ -61,6 +63,7 @@ function main(tokens, fileMap, options) {
   buf.addPlain("try {");
   generateCode(tokens, state);
   handleMixins(state);
+  handleBlocks(state);
   buf.addPlain("return _buf_;");
   // buf.addPlain("console.log(_buf_);");
   buf.addPlain("} catch (e) {");
@@ -86,6 +89,7 @@ function main(tokens, fileMap, options) {
     localsFullNames: state.localsFullNames,
     context: state.context,
     warnings: state.warnings,
+    blocks: state.blocks,
   };
 }
 
@@ -185,6 +189,21 @@ function handleMixins(state) {
   }
   // state.idx = idx;
   // state.tokens = tokens;
+}
+
+/** @param {State} state */
+function handleBlocks(state) {
+  for (const [name, block] of state.blocks.entries()) {
+    const { tokens, file, idx } = block;
+    state.idx = 0;
+    state.tokens = tokens;
+    const fn = `_block_${name}`;
+    state.buf.buf[idx] = `${fn}();`;
+    state.buf.addPlain(`function ${fn}() {`);
+    state.buf.addPlain(`_file_ = "${file}";`);
+    generateCode(tokens, state);
+    state.buf.addPlain("}");
+  }
 }
 
 function inlineRuntime(state, runtime) {

@@ -192,6 +192,23 @@ const tags = {
     state.idx = end + 1;
   },
 
+  block(state, { args }) {
+    const end = findTag("endblock", state);
+    const { idx: start, file } = state;
+    const [name] = args;
+    // block code is generated at later stage
+    const tokens = state.tokens.slice(start + 1, end);
+    let idx;
+    if (state.blocks.has(name)) {
+      idx = state.blocks.get(name).idx;
+    } else {
+      idx = state.buf.buf.length;
+      state.buf.addPlain("");
+    }
+    state.blocks.set(name, { tokens, idx, file });
+    state.idx = end + 1;
+  },
+
   _file_(state, { args }) {
     const file = args[1];
     state.file = file;

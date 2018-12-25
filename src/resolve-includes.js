@@ -7,7 +7,8 @@ const readFile = require("util").promisify(_readFile);
 const { asUnixPath, addIndent, BirkError, errorContext } = require("./utils");
 
 // {% include "filename" %}
-const regex = /{%\s*include (?:"|'|)([a-zA-z0-9_\-./\s]+)(?:"|'|)\s*%}/;
+const reInclude = /{%\s*include (?:"|'|)([a-zA-z0-9_\-./\s]+)(?:"|'|)\s*%}/;
+const reExtends = /{%\s*extends (?:"|'|)([a-zA-z0-9_\-./\s]+)(?:"|'|)\s*%}/;
 
 /**
  * @param {string} input
@@ -24,8 +25,13 @@ module.exports.preProcess = async function preProcess(input, options) {
 
   const file = rel(fileName);
   fileMap.set(file, input);
+
+  if (isExtensible()) {
+    input = await extend();
+  }
+
   const processedText = await substitute(input, file);
-  const processedTextWithDebug = wrapDebugInfo(processedText, "0", file, file);
+  const processedTextWithDebug = wrapDebugInfo(processedText, 0, file, file);
 
   return {
     fileMap: fileMap,
@@ -138,8 +144,8 @@ module.exports.preProcess = async function preProcess(input, options) {
     const matchedLines = [];
     let j = 0;
     for (let i = 0, l = lines.length; i < l; ++i) {
-      if (regex.test(lines[i])) {
-        const match = lines[i].match(regex);
+      if (reInclude.test(lines[i])) {
+        const match = lines[i].match(reInclude);
         const indent = lines[i].search(/\S/);
         matchedLines.push({
           match: match[0],
@@ -176,7 +182,7 @@ module.exports.preProcess = async function preProcess(input, options) {
 
   /**
    * @param {string} content
-   * @param {string} length length of {% include filename %} statement
+   * @param {number|string} length length of {% include filename %} statement
    * @param {FilePath} current current file
    * @param {FilePath} parent current file's parent
    */
@@ -194,5 +200,23 @@ module.exports.preProcess = async function preProcess(input, options) {
    */
   function rel(p) {
     return asUnixPath(path.relative(baseDir, p));
+  }
+
+  function isExtensible() {
+    const posExtends = input.search(reExtends);
+    if (posExtends === -1) return false;
+    const posFirstTag = input.search(/{[%|#]/);
+    return posFirstTag !== -1 || posFirstTag !== -1 && posExtends < posFirstTag;
+  }
+
+  async function extend() {
+    const matches = input.match(reExtends);
+    const [match, name] = matches;
+    const file = path.join(path.dirname(fileName), path.posix.normalize(name));
+    const fname = rel(file);
+    const text = await readFile(file, "utf8");
+    fileMap.set(fname, text);
+    const content = wrapDebugInfo(text, match.length, fname, rel(fileName));
+    return input.replace(matches[0], content);
   }
 };
