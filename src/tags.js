@@ -5,11 +5,11 @@ const { findTag, splitString, getIdentifierBase } = require("./utils");
 /**
  * @typedef {import("./codegen.js").State} State
  * @typedef {import("./tokenize.js").TagToken} Token
- * @typedef { (token: Token, state: State) => void } Tag
+ * @typedef { (state: State, token?: Token) => void } Tag
  * @type {{ [name: string]: Tag }}
  */
 const tags = {
-  assign({ args }, state) {
+  assign(state, { args }) {
     const [name] = args;
     if (state.context.has(name)) {
       state.buf.addPlain(`${args.join(" ")};`);
@@ -20,7 +20,7 @@ const tags = {
     state.idx += 1;
   },
 
-  capture({ args }, state) {
+  capture(state, { args }) {
     const end = findTag("endcapture", state);
 
     let capturedValue = "";
@@ -40,7 +40,7 @@ const tags = {
     state.idx = end + 1;
   },
 
-  raw(token, state) {
+  raw(state) {
     const start = state.idx + 1;
     const end = findTag("endraw", state);
     for (let i = start; i < end; ++i) {
@@ -53,7 +53,7 @@ const tags = {
     state.idx = end + 1;
   },
 
-  js(token, state) {
+  js(state) {
     const start = state.idx + 1;
     const end = findTag("endjs", state);
     for (let i = start; i < end; ++i) {
@@ -65,19 +65,19 @@ const tags = {
     state.idx = end + 1;
   },
 
-  comment(token, state) {
+  comment(state) {
     const end = findTag("endcomment", state);
     state.idx = end + 1;
   },
 
-  if({ args }, state) {
+  if(state, { args }) {
     findTag("endif", state);
     state.context.create();
     state.buf.addPlain(`if (${args.join(" ")}) {`);
     state.idx += 1;
   },
 
-  elseif({ args }, state) {
+  elseif(state, { args }) {
     findTag("endif", state);
     state.context.destroy();
     state.context.create();
@@ -85,17 +85,17 @@ const tags = {
     state.idx += 1;
   },
 
-  else(token, state) {
+  else(state) {
     findTag("endif", state);
     state.context.destroy();
     state.context.create();
-    state.buf.addPlain(`} else {`);
+    state.buf.addPlain("} else {");
     state.idx += 1;
   },
 
   endif: blockEnd,
 
-  case({ args }, state) {
+  case(state, { args }) {
     findTag("endcase", state);
     state.context.create();
     state.buf.addPlain(`switch (${args[0]}) {`);
@@ -103,7 +103,7 @@ const tags = {
     state.idx = next;
   },
 
-  when({ args }, state) {
+  when(state, { args }) {
     findTag("endcase", state);
     if (!state.buf.buf[state.buf.buf.length - 1].startsWith("switch")) {
       state.buf.buf[state.buf.buf.length - 1] = "";
@@ -112,9 +112,9 @@ const tags = {
     state.idx++;
   },
 
-  default(token, state) {
+  default(state) {
     findTag("endcase", state);
-    state.buf.addPlain(`default:`);
+    state.buf.addPlain("default:");
     state.idx++;
   },
 
@@ -128,7 +128,7 @@ const tags = {
    * case5: for index, value of array
    * case6: for key, value of object
    */
-  for({ args }, state) {
+  for(state, { args }) {
     findTag("endfor", state);
     const loop = getLoopComponents(args);
 
@@ -168,7 +168,7 @@ const tags = {
     state.idx += 1; // end + 1;
 
     function createRange(str) {
-      const [_, start, end] = str.match(rangeRegex);
+      const [, start, end] = str.match(rangeRegex);
       return `Array.from({ length: ${end}-${start}+1 }, (_, i) => ${start}+i)`;
     }
   },
@@ -177,13 +177,12 @@ const tags = {
   break: simpleToken,
   continue: simpleToken,
 
-  trim(token, state) {
+  trim(state) {
     state.tokens[state.idx + 1].val = state.tokens[state.idx + 1].val.trim();
     state.idx += 1;
   },
 
-  /** @param {Token} token, @param {State} state */
-  mixin({ args }, state) {
+  mixin(state, { args }) {
     const start = state.idx;
     const end = findTag("endmixin", state);
     const [mixinName, ...params] = args;
@@ -193,7 +192,7 @@ const tags = {
     state.idx = end + 1;
   },
 
-  _file_({ args }, state) {
+  _file_(state, { args }) {
     const file = args[1];
     state.file = file;
     state.buf.addPlain(`_file_ = "${file}";`);
@@ -202,13 +201,13 @@ const tags = {
 };
 
 // tag specific utils
-function blockEnd(token, state) {
+function blockEnd(state) {
   state.buf.addPlain("}");
   state.context.destroy();
   state.idx += 1;
 }
 
-function simpleToken(token, state) {
+function simpleToken(state, token) {
   state.buf.addPlain(token.name + ";");
   state.idx += 1;
 }

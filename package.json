@@ -1,13 +1,17 @@
 {
   "name": "birk",
   "version": "1.0.0",
+  "engines": {
+    "node": ">=10.0.0"
+  },
   "description": "A fast HTML template engine with syntax similar to Ruby's Liquid. Used in Bleu.",
   "main": "index.js",
   "directories": {
     "test": "test"
   },
   "scripts": {
-    "test": "node test/test.js"
+    "test": "jest",
+    "lint": "eslint --fix src"
   },
   "keywords": [
     "template-engine",
@@ -16,6 +20,7 @@
   "author": "Sid Vishnoi",
   "license": "MIT",
   "devDependencies": {
-    "easy-table": "^1.1.1"
+    "eslint": "^5.11.0",
+    "jest": "^23.6.0"
   }
 }

@@ -171,4 +171,4 @@ module.exports.tokenize = function tokenize(input, fileMap) {
     }
     return i;
   }
-}
+};

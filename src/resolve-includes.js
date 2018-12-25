@@ -7,7 +7,7 @@ const readFile = require("util").promisify(_readFile);
 const { asUnixPath, addIndent, BirkError, errorContext } = require("./utils");
 
 // {% include "filename" %}
-const regex = /{%\s*include (?:"|'|)([a-zA-z0-9_\-\.\/\s]+)(?:"|'|)\s*%}/;
+const regex = /{%\s*include (?:"|'|)([a-zA-z0-9_\-./\s]+)(?:"|'|)\s*%}/;
 
 /**
  * @param {string} input
@@ -51,7 +51,7 @@ module.exports.preProcess = async function preProcess(input, options) {
     );
 
     if (dependencyTree.get(file)) {
-      console.log(dependencyTree);
+      console.warn(dependencyTree);
       throw new Error("Cyclic dependencies found.");
     }
     dependencyTree.set(file, includedFiles.map(rel));
@@ -195,4 +195,4 @@ module.exports.preProcess = async function preProcess(input, options) {
   function rel(p) {
     return asUnixPath(path.relative(baseDir, p));
   }
-}
+};

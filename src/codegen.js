@@ -61,8 +61,8 @@ function main(tokens, fileMap, options) {
   buf.addPlain("try {");
   generateCode(tokens, state);
   handleMixins(state);
-  // buf.addPlain("return _buf_;");
-  buf.addPlain("console.log(_buf_);");
+  buf.addPlain("return _buf_;");
+  // buf.addPlain("console.log(_buf_);");
   buf.addPlain("} catch (e) {");
   buf.addPlain("const ctx = _r_.context(_pos_, _file_, _r_.fileMap);");
   buf.addPlain("_r_.rethrow(e, ctx, _r_.BirkError);");
@@ -98,17 +98,17 @@ function generateCode(tokens, state) {
   while (state.idx < length) {
     const token = tokens[state.idx];
     switch (token.type) {
-      case "raw":
-        state.buf.addDebug(state);
-        state.buf.add(token.val, true);
-        state.idx += 1;
-        break;
-      case "object":
-        handleObject(state);
-        break;
-      case "tag":
-        handleTag(state);
-        break;
+    case "raw":
+      state.buf.addDebug(state);
+      state.buf.add(token.val, true);
+      state.idx += 1;
+      break;
+    case "object":
+      handleObject(state);
+      break;
+    case "tag":
+      handleTag(state);
+      break;
     }
   }
 }
@@ -163,7 +163,7 @@ function handleTag(state) {
   }
 
   if (name in tags && typeof tags[name] === "function") {
-    tags[name](token, state);
+    tags[name](state, token);
   } else {
     const ctx = errorContext2(state);
     throw new BirkError(`Invalid tag: "${name}"`, "BirkCompileError", ctx);
@@ -220,9 +220,9 @@ function inlineRuntime(state, runtime) {
 function fmt(x) {
   return x
     .replace(/\s{2,}/g, "")
-    .replace(/\s(\=|\+|\-|\?|\>|\<|\:)\s/g, "$1")
-    .replace(/(\,|\=|\>)\s/g, "$1")
-    .replace(/\s(\{|\(|\=|\+|\-)/g, "$1")
+    .replace(/\s(=|\+|-|\?|>|<|:)\s/g, "$1")
+    .replace(/(,|=|>)\s/g, "$1")
+    .replace(/\s(\{|\(|=|\+|-)/g, "$1")
     .replace(/;\s*\}/g, "}");
 }
 

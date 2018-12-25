@@ -30,13 +30,13 @@ function findTag(tag, state) {
         if (!stack.length) {
           return idx; // found tag!
         } else {
-          throw new BirkError(`Invalid nesting.`, '', errorContext2(state, 4));
+          throw new BirkError("Invalid nesting.", "", errorContext2(state, 4));
         }
       } else if (name.startsWith("end")) {
         if (stack[stack.length - 1] === name) {
           stack.pop();
         } else {
-          throw new BirkError(`Invalid nesting.`, '', errorContext2(state, 4));
+          throw new BirkError("Invalid nesting.", "", errorContext2(state, 4));
         }
       } else if (blockTags.has(name)) {
         stack.push("end" + name);
@@ -69,7 +69,7 @@ function splitString(str, ch, limit = 999) {
   let marker = false;
   while (i < length) {
     const c = str.charAt(i);
-    if (c === `"` || c === `'`) {
+    if (c === "\"" || c === "'") {
       if (quote === "") quote = c;
       if (c === quote) marker = !marker;
     } else if (c === ch && !marker) {
@@ -118,9 +118,7 @@ function errorContext2({ fpos, file, fileMap }, ctx = 2) {
 }
 
 function asUnixPath(str) {
-  if (/^\\\\\?\\/.test(str) || /[^\u0000-\u0080]+/.test(str)) {
-    return str;
-  }
+  if (/^\\\\\?\\/.test(str)) return str;
   return str.replace(/\\/g, "/");
 }
 

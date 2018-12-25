@@ -1,14 +1,14 @@
 const escape = str => str.replace(/&|<|>|"|'/g, m =>
-  ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&#34;', "'": '&#39;'})[m]);
+  ({"&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&#34;", "'": "&#39;"})[m]);
 
 const unescape = str => str.replace(/&(amp|lt|gt|#34|#39);/g, m =>
-  ({'&amp;': '&', '&lt;': '<', '&gt;': '>', '&#34;': '"', '&#39;': "'"})[m])
+  ({"&amp;": "&", "&lt;": "<", "&gt;": ">", "&#34;": "\"", "&#39;": "'"})[m]);
 
 const escape_once = str => str
   .replace(/&(amp|lt|gt|#34|#39);/g, m =>
-    ({'&amp;': '&', '&lt;': '<', '&gt;': '>', '&#34;': '"', '&#39;': "'"})[m])
+    ({"&amp;": "&", "&lt;": "<", "&gt;": ">", "&#34;": "\"", "&#39;": "'"})[m])
   .replace(/&|<|>|"|'/g, m =>
-    ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&#34;', "'": '&#39;'})[m]);
+    ({"&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&#34;", "'": "&#39;"})[m]);
 
 const filters = {
   abs: v => Math.abs(v),
@@ -55,16 +55,16 @@ const filters = {
   truncate: (v, l = 16, o = "...") =>
     v.length <= l ? v : v.substr(0, l - o.length) + o,
   truncate_words: (v, l = 10, o = "...") => {
-    const arr = v.split(' ');
-    let ret = arr.slice(0, l).join(' ');
+    const arr = v.split(" ");
+    let ret = arr.slice(0, l).join(" ");
     if (arr.length > l) ret += o;
     return ret;
   },
   unescape,
   uniq: arr => [...new Set(arr)],
   upcase: str => str.toUpperCase(),
-  url_decode: x => x.split('+').map(decodeURIComponent).join(' '),
-  url_encode: x => x.split(' ').map(encodeURIComponent).join('+'),
+  url_decode: x => x.split("+").map(decodeURIComponent).join(" "),
+  url_encode: x => x.split(" ").map(encodeURIComponent).join("+"),
 };
 
 // set aliases
