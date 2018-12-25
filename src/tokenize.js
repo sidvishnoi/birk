@@ -7,6 +7,7 @@ const { splitString, errorContext, BirkError, Stack } = require("./utils");
  * @typedef {{type: "object", val: string, start: number, end: number,  fpos: number, name: string, filters: Array<{name: string, args: string[]}>}} ObjectToken
  * @typedef {RawToken | TagToken | ObjectToken} Token
  * @param {string} input
+ * @param {Map<string, string>} fileMap
  */
 module.exports.tokenize = function tokenize(input, fileMap) {
   /** @type {Token[]} */
