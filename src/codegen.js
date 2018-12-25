@@ -1,5 +1,11 @@
 // @ts-check
-const utils = require("./utils");
+
+const {
+  BirkError,
+  errorContext2,
+  getIdentifierBase,
+  VariableContext,
+} = require("./utils");
 const tags = require("./tags");
 const runtime = require("./runtime");
 
@@ -11,7 +17,7 @@ const runtime = require("./runtime");
  *  locals: Set<string>,
  *  localsFullNames: Set<string>,
  *  filters: Map<string, [number, string]>,
- *  assign: Set<string>,
+ *  context: VariableContext,
  *  mixins: Map<string, { params: string[], tokens: Token[] }>,
  *  fileMap: Map<string, string>,
  *  tokens: Token[],
@@ -68,8 +74,8 @@ function main(tokens, fileMap, options) {
     locals: new Set(),
     localsFullNames: new Set(),
     filters: new Map(),
-    assign: new Set(),
     mixins: new Map(),
+    context: new VariableContext(),
     fileMap,
     fpos: 0,
     file: "",
@@ -104,11 +110,16 @@ function main(tokens, fileMap, options) {
   buf.buf[runtimeLoc] += `\n_r_.fileMap = new Map(${fileMapSerialization});`;
 
   if (state.filters.size) {
-    const filters = [...state.filters.keys()].join(", ");
-    buf.buf[declarationsLoc] = `const { ${filters} } = _r_.filters;`;
+    const names = [...state.filters.keys()].filter(f => !/\W/.test(f));
+    buf.buf[declarationsLoc] = `const { ${names.join(", ")} } = _r_.filters;`;
   }
 
-  return { code: state.buf.toString() };
+  return {
+    code: state.buf.toString(),
+    locals: state.locals,
+    localsFullNames: state.localsFullNames,
+    context: state.context,
+  };
 }
 
 /**
@@ -144,8 +155,8 @@ function handleObject(state) {
   state.buf.addDebug(state);
   const { name, filters } = token;
 
-  const base = utils.getIdentifierBase(name);
-  if (!state.assign.has(base)) {
+  const base = getIdentifierBase(name);
+  if (!state.context.has(base)) {
     state.localsFullNames.add(name);
     state.locals.add(base);
   }
@@ -187,34 +198,32 @@ function handleTag(state) {
   if (name in tags && typeof tags[name] === "function") {
     tags[name](token, state);
   } else {
-    const ctx = utils.errorContext2(state);
-    throw new utils.BirkError(`Invalid tag: "${name}"`, "BirkCompileError", ctx);
+    const ctx = errorContext2(state);
+    throw new BirkError(`Invalid tag: "${name}"`, "BirkCompileError", ctx);
   }
   if (state.idx === idx) {
-    throw new utils.BirkError(`Tag ${name} didn't change state`);
+    throw new BirkError(`Tag ${name} didn't change state`);
   }
 }
 
 /** @param {State} state */
 function handleMixins(state) {
-  const { idx, tokens } = state;
-  [...state.mixins.keys()].forEach(mixinName => {
-    const { tokens, params } = state.mixins.get(mixinName);
+  // const { idx, tokens } = state;
+  for (const [mixinName, { tokens, params }] of state.mixins.entries()) {
     state.idx = 0;
     state.tokens = tokens;
     state.buf.addPlain(`function _mixin_${mixinName}(${params.join(", ")}) {`);
     generateCode(tokens, state);
     state.buf.addPlain("}");
-  });
-  state.idx = idx;
-  state.tokens = tokens;
+  }
+  // state.idx = idx;
+  // state.tokens = tokens;
 }
 
 function inlineRuntime(state, runtime) {
   const { filters, context, rethrow } = runtime;
-  let r = [];
+  const r = [];
   r.push("const _r_ = {");
-  const { errorContext, BirkError } = utils;
 
   if (state.filters.size) {
     r.push("filters: {");

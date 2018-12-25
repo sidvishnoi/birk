@@ -160,6 +160,32 @@ class BirkError extends Error {
   }
 }
 
+class VariableContext extends Array {
+  constructor() {
+    super();
+    this.create();
+  }
+
+  create() {
+    this.push(new Set());
+  }
+
+  destroy() {
+    this.pop();
+  }
+
+  add(item) {
+    this[this.length - 1].add(item);
+  }
+
+  has(item) {
+    for (let i = this.length - 1; i >= 0; i--) {
+      if (this[i].has(item)) return true;
+    }
+    return false;
+  }
+}
+
 module.exports = {
   addIndent,
   asUnixPath,
@@ -170,4 +196,5 @@ module.exports = {
   getIdentifierBase,
   splitString,
   Stack,
+  VariableContext,
 };

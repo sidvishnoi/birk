@@ -1,3 +1,5 @@
+// @ts-check
+
 /**
  * @typedef {import("./codegen.js").State} State
  * @typedef {import("./tokenize.js").TagToken} Token
@@ -7,30 +9,29 @@ const { findTag, splitString, getIdentifierBase } = require("./utils");
 
 module.exports.assign = (token, state) => {
   const [name] = token.args;
-  if (state.assign.has(name)) {
+  if (state.context.has(name)) {
     state.buf.addPlain(`${token.args.join(" ")};`);
   } else {
-    state.assign.add(name);
+    state.context.add(name);
     state.buf.addPlain(`let ${token.args.join(" ")};`);
   }
   state.idx += 1;
 };
 
 module.exports.capture = (token, state) => {
-  const start = state.idx + 1;
   const end = findTag("endcapture", state);
 
   let capturedValue = "";
-  for (let i = start; i < end; ++i) {
+  for (let i = state.idx + 1; i < end; ++i) {
     state.buf.addDebug(state);
     capturedValue += state.tokens[i].val;
   }
 
   const [name] = token.args;
-  if (state.assign.has(name)) {
+  if (state.context.has(name)) {
     state.buf.addPlain(`${name} = \`${capturedValue}\`;`);
   } else {
-    state.assign.add(name);
+    state.context.add(name);
     state.buf.addPlain(`let ${name} = \`${capturedValue}\`;`);
   }
 
@@ -69,16 +70,21 @@ module.exports.comment = (token, state) => {
 
 module.exports.if = (token, state) => {
   findTag("endif", state);
+  state.context.create();
   state.buf.addPlain(`if (${token.args.join(" ")}) {`);
   state.idx += 1;
 };
 module.exports.elseif = (token, state) => {
   findTag("endif", state);
+  state.context.destroy();
+  state.context.create();
   state.buf.addPlain(`} else if (${token.args.join(" ")}) {`);
   state.idx += 1;
 };
 module.exports.else = (token, state) => {
   findTag("endif", state);
+  state.context.destroy();
+  state.context.create();
   state.buf.addPlain(`} else {`);
   state.idx += 1;
 };
@@ -86,6 +92,7 @@ module.exports.endif = blockEnd;
 
 module.exports.case = (token, state) => {
   findTag("endcase", state);
+  state.context.create();
   state.buf.addPlain(`switch (${token.args[0]}) {`);
   const next = findTag("when", state);
   state.idx = next;
@@ -115,33 +122,37 @@ module.exports.endcase = blockEnd;
  */
 module.exports.for = (token, state) => {
   findTag("endfor", state);
+  const loop = getLoopComponents(token.args);
 
-  const {
-    type, front, join, ids, iterable, offset, limit, indexer
-  } = getLoopComponents(token.args);
+  state.context.create();
+  loop.ids.forEach(id => state.context.add(id));
 
+  const { iterable } = loop;
   if (!/^(\[|\(|\{)/.test(iterable)) {
     const id = getIdentifierBase(iterable);
-    state.locals.add(id);
-    state.localsFullNames.add(iterable);
+    if (!state.context.has(id)) {
+      state.locals.add(id);
+      state.localsFullNames.add(iterable);
+    }
   }
 
-  let output = `for (const ${front} ${join} `;
+  let output = `for (const ${loop.front} ${loop.join} `;
 
   const rangeRegex = /(\w+)\.\.(\w+)/;
   if (rangeRegex.test(iterable)) {
     output += createRange(iterable);
   } else {
-    output += type === 1 ? iterable : `Object.entries(${iterable})`;
+    output += loop.type === 1 ? iterable : `Object.entries(${iterable})`;
   }
   output += ") ";
 
-  if (offset || limit) {
-   output += "if (";
-   if (offset !== undefined) output += `${indexer} >= ${offset}`;
-   if (offset && limit) output += " && ";
-   if (limit !== undefined) output += `${indexer} < ${limit}`;
-   output += ") ";
+  if (loop.offset || loop.limit) {
+    const { offset, limit, indexer } = loop;
+    output += "if (";
+    if (offset !== undefined) output += `${indexer} >= ${offset}`;
+    if (offset && limit) output += " && ";
+    if (limit !== undefined) output += `${indexer} < ${limit}`;
+    output += ") ";
   }
   output += "{";
 
@@ -184,6 +195,7 @@ module.exports._file_ = (token, state) => {
 // tag specific utils
 function blockEnd(token, state) {
   state.buf.addPlain("}");
+  state.context.destroy();
   state.idx += 1;
 }
 
@@ -224,7 +236,8 @@ function getLoopComponents(args) {
       (idStart === "[" && idEnd === "]")
     ) {
       type = 1;
-      front.slice(1, -1).split(/\s*,\s*/).forEach(i => ids.add(i.trim()));
+      const its = front.slice(1, -1).split(/\s*,\s*/);
+      its.forEach(i => ids.add(i.trim()));
     } else {
       ids.add(front);
     }
@@ -238,11 +251,11 @@ function getLoopComponents(args) {
   if (canLimitOffset) {
     const off = backItems.find(item => item.startsWith("offset"));
     if (off) {
-      offset = off.split(" ").map(Number).find(Number);
+      offset = off.split(" ").map(s => s.trim())[0];
     }
     const lim = backItems.find(item => item.startsWith("limit"));
     if (lim) {
-      limit = lim.split(" ").map(Number).find(Number);
+      limit = lim.split(" ").map(s => s.trim())[0];
     }
   }
 
