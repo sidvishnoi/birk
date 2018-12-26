@@ -1,12 +1,13 @@
 // @ts-check
 
-const { findTag, splitString, getIdentifierBase } = require("./utils");
+const { findTag, splitString, addLocal } = require("./utils");
 
 /**
  * @typedef {import("./codegen.js").State} State
  * @typedef {import("./tokenize.js").TagToken} Token
- * @typedef { (state: State, token?: Token) => void } Tag
- * @type {{ [name: string]: Tag }}
+ * @typedef { (state: State, token?: Token) => void } TagHandler
+ * @typedef {{ [name: string]: TagHandler }} Tags
+ * @type {Tags}
  */
 const tags = {
   assign(state, { args }) {
@@ -136,13 +137,7 @@ const tags = {
     loop.ids.forEach(id => state.context.add(id));
 
     const { iterable } = loop;
-    if (!/^(\[|\(|\{)/.test(iterable)) {
-      const id = getIdentifierBase(iterable);
-      if (!state.context.has(id)) {
-        state.locals.add(id);
-        state.localsFullNames.add(iterable);
-      }
-    }
+    addLocal(iterable, state);
 
     let output = `for (const ${loop.front} ${loop.join} `;
 

@@ -1,10 +1,9 @@
 // @ts-check
-
 const {
+  addLocal,
   BirkError,
   Buffer,
   errorContext2,
-  getIdentifierBase,
   VariableContext,
 } = require("./utils");
 const tags = require("./tags");
@@ -12,6 +11,7 @@ const runtime = require("./runtime");
 
 /**
  * @typedef {import("./tokenize").Token} Token
+ * @typedef {import("./lib").Options} Options
  * @typedef {{
  *  idx: number,
  *  fpos: number,
@@ -26,17 +26,24 @@ const runtime = require("./runtime");
  *  mixins: Map<string, { params: string[], tokens: Token[] }>,
  *  blocks: Map<string, { tokens: Token[], idx: number, file: string  }>,
  *  tokens: Token[],
+ *  conf: Options,
  * }} State
  */
 
 /**
  * @param {Token[]} tokens
+ * @param {Map<string, string>} fileMap
+ * @param {import("./lib").Options} conf
  */
-function main(tokens, fileMap, options) {
+function main(tokens, fileMap, conf) {
+  conf.tags = Object.assign({}, tags, conf.tags);
+  conf._runtime = runtime;
+  conf._runtime.filters = Object.assign({}, runtime.filters, conf.filters);
+
   /** @type {State} */
   const state = {
     idx: 0,
-    buf: new Buffer(true),
+    buf: new Buffer(conf.compileDebug),
     locals: new Set(),
     localsFullNames: new Set(),
     filters: new Map(),
@@ -48,6 +55,7 @@ function main(tokens, fileMap, options) {
     file: "",
     warnings: [],
     tokens,
+    conf,
   };
 
   const { buf } = state;
@@ -59,7 +67,7 @@ function main(tokens, fileMap, options) {
   buf.addPlain("");
 
   // write actual code
-  buf.addPlain("let _buf_ = '', _pos_, _file_ = 'main';");
+  buf.addPlain("let _buf_ = '', _pos_, _file_ = '', _msg_;");
   buf.addPlain("try {");
   generateCode(tokens, state);
   handleMixins(state);
@@ -68,11 +76,11 @@ function main(tokens, fileMap, options) {
   // buf.addPlain("console.log(_buf_);");
   buf.addPlain("} catch (e) {");
   buf.addPlain("const ctx = _r_.context(_pos_, _file_, _r_.fileMap);");
-  buf.addPlain("_r_.rethrow(e, ctx, _r_.BirkError);");
+  buf.addPlain("_r_.rethrow(e, ctx, _r_.BirkError, _msg_);");
   buf.addPlain("}");
 
-  if (options.inlineRuntime) {
-    buf.buf[runtimeLoc] = inlineRuntime(state, runtime);
+  if (conf.inlineRuntime) {
+    buf.buf[runtimeLoc] = inlineRuntime(state, conf._runtime);
   }
 
   const fileMapSerialization = JSON.stringify([...fileMap.entries()]);
@@ -80,16 +88,19 @@ function main(tokens, fileMap, options) {
 
   if (state.filters.size) {
     const names = [...state.filters.keys()].filter(f => !/\W/.test(f));
-    buf.buf[declarationsLoc] = `const { ${names.join(", ")} } = _r_.filters;`;
+    buf.buf[declarationsLoc] += `const { ${names.join(", ")} } = _r_.filters;`;
+  }
+
+  if (state.locals.size) {
+    const names = [...state.locals];
+    buf.buf[declarationsLoc] += `\nconst { ${names.join(", ")} } = _locals_;`;
   }
 
   return {
     code: state.buf.toString(),
     locals: state.locals,
     localsFullNames: state.localsFullNames,
-    context: state.context,
     warnings: state.warnings,
-    blocks: state.blocks,
   };
 }
 
@@ -126,11 +137,7 @@ function handleObject(state) {
   state.buf.addDebug(state);
   const { name, filters } = token;
 
-  const base = getIdentifierBase(name);
-  if (!state.context.has(base)) {
-    state.localsFullNames.add(name);
-    state.locals.add(base);
-  }
+  addLocal(name, state);
 
   let prefix = "";
   let suffix = "";
@@ -143,8 +150,17 @@ function handleObject(state) {
     }
     suffix += ")";
   }
-  state.idx += 1;
+
+  if (state.conf.compileDebug) {
+    state.buf.addPlain(
+      `_msg_ = _r_.undef(${name}, \`${name}\`);`
+    );
+  }
   state.buf.add(prefix + name + suffix);
+  if (state.conf.compileDebug) {
+    state.buf.addPlain("_msg_ = '';");
+  }
+  state.idx += 1;
 }
 
 /**
@@ -166,20 +182,23 @@ function handleTag(state) {
     return;
   }
 
+  const { tags } = state.conf;
   if (name in tags && typeof tags[name] === "function") {
     tags[name](state, token);
   } else {
     const ctx = errorContext2(state);
-    throw new BirkError(`Invalid tag: "${name}"`, "BirkCompileError", ctx);
+    const msg = `Tag "${name}" not found`;
+    throw new BirkError(msg, "Compile", ctx);
   }
   if (state.idx === idx) {
-    throw new BirkError(`Tag ${name} didn't change state`);
+    const ctx = errorContext2(state);
+    const msg = `Tag "${name}" didn't change engine state`;
+    throw new BirkError(msg, "Compile", ctx);
   }
 }
 
 /** @param {State} state */
 function handleMixins(state) {
-  // const { idx, tokens } = state;
   for (const [mixinName, { tokens, params }] of state.mixins.entries()) {
     state.idx = 0;
     state.tokens = tokens;
@@ -187,8 +206,6 @@ function handleMixins(state) {
     generateCode(tokens, state);
     state.buf.addPlain("}");
   }
-  // state.idx = idx;
-  // state.tokens = tokens;
 }
 
 /** @param {State} state */
@@ -207,16 +224,20 @@ function handleBlocks(state) {
 }
 
 function inlineRuntime(state, runtime) {
-  const { filters, context, rethrow } = runtime;
+  const { context, rethrow, undef, filters } = runtime;
   const r = [];
   r.push("const _r_ = {");
 
   if (state.filters.size) {
     r.push("filters: {");
     for (const [filter, [fpos, file]] of state.filters.entries()) {
-      const isValid = filters.hasOwnProperty(filter);
-      if (isValid) {
-        r.push(`${filter}: ${fmt(filters[filter].toString())},`);
+      if (filters.hasOwnProperty(filter)) {
+        const s = fmt(filters[filter].toString());
+        if (s.startsWith("(") || s.includes("=>")) {
+          r.push(`${filter}: ${s},`);
+        } else {
+          r.push(`${s},`);
+        }
         continue;
       }
       state.warnings.push({
@@ -230,6 +251,7 @@ function inlineRuntime(state, runtime) {
   r.push(`context: ${fmt(context.toString())},`);
   r.push(`BirkError: ${fmt(BirkError.toString())},`);
   r.push(`rethrow: ${fmt(rethrow.toString())},`);
+  r.push(`undef: ${fmt(undef.toString())},`);
   r.push("};");
   return r.join("\n");
 }

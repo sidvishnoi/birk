@@ -11,6 +11,16 @@ function getIdentifierBase(str) {
   return str;
 }
 
+function addLocal(name, state) {
+  if (!/^(\[|\(|\{|"|'|\d)/.test(name) && !/("|')$/.test(name)) {
+    const id = getIdentifierBase(name);
+    if (!state.context.has(id)) {
+      state.locals.add(id);
+      state.localsFullNames.add(name);
+    }
+  }
+}
+
 /**
  * @param {string} tag
  * @param {import("./codegen.js").State} state
@@ -30,13 +40,15 @@ function findTag(tag, state) {
         if (!stack.length) {
           return idx; // found tag!
         } else {
-          throw new BirkError("Invalid nesting.", "", errorContext2(state, 4));
+          const ctx = errorContext2(state, 4);
+          throw new BirkError("Invalid nesting.", "Compile", ctx);
         }
       } else if (name.startsWith("end")) {
         if (stack[stack.length - 1] === name) {
           stack.pop();
         } else {
-          throw new BirkError("Invalid nesting.", "", errorContext2(state, 4));
+          const ctx = errorContext2(state, 4);
+          throw new BirkError("Invalid nesting.", "Compile", ctx);
         }
       } else if (blockTags.has(name)) {
         stack.push("end" + name);
@@ -110,7 +122,7 @@ function errorContext(pos, file, fileMap, ctx = 2) {
       Math.max(lineNum - ctx, 0),
       Math.min(lineNum + ctx + 1, lines.length)
     )
-    .concat(` File| ${file}:${lineNum + 1}:${pos - p + 1}`)
+    .concat(file === "" ? "" : ` File| ${file}:${lineNum + 1}:${pos - p + 1}`)
     .join("\n");
 }
 
@@ -153,9 +165,8 @@ class Stack extends Array {
 class BirkError extends Error {
   constructor(message, name = "", context = "") {
     super(message);
-    this.name = name || "BirkError";
+    this.name = `Birk${name || ""}Error`;
     this.message += `\n${context}`;
-    this.context = context;
   }
 }
 
@@ -224,6 +235,7 @@ class Buffer {
 
 module.exports = {
   addIndent,
+  addLocal,
   asUnixPath,
   BirkError,
   Buffer,

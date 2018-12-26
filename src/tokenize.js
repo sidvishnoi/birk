@@ -150,11 +150,8 @@ module.exports.tokenize = function tokenize(input, fileMap) {
     const i = input.indexOf(needle, start + 2);
     if (i === -1) {
       const ctx = errorContext(ptrStack.v, fileStack.v, fileMap);
-      throw new BirkError(
-        `Malformed token. Failed to find ${needleName + ` "${needle}"`}.`,
-        "BirkParserError",
-        ctx
-      );
+      const msg = `Malformed token. Failed to find ${needleName} "${needle}.`;
+      throw new BirkError(msg, "Parse", ctx);
     }
 
     for (const bad of ["{{", "{%"]) {
@@ -162,12 +159,10 @@ module.exports.tokenize = function tokenize(input, fileMap) {
       if (j === -1) continue;
       if (j < i) {
         const ctx = errorContext(ptrStack.v + 2, fileStack.v, fileMap);
-        throw new BirkError(
-          `Malformed token. Failed to find ${needleName +
-            ` "${needle}"`}. Found "${bad}" instead.`,
-          "BirkParserError",
-          ctx
-        );
+        const msg =
+          `Malformed token. Failed to find ${needleName} "${needle}.` +
+          ` Found "${bad}" instead"`;
+        throw new BirkError(msg, "Parse", ctx);
       }
     }
     return i;
