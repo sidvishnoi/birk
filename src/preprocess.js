@@ -1,10 +1,13 @@
 // @ts-check
 // resolves {% include filename %} and {% extends filename %} tags
-const path = require("path");
-const { readFile: _readFile, existsSync } = require("fs");
-const readFile = require("util").promisify(_readFile);
-
-const { asUnixPath, addIndent, BirkError, errorContext } = require("./utils");
+import path from "path";
+import { existsSync, readFile as _readFile } from "fs";
+import {
+  asUnixPath,
+  addIndent,
+  BirkError,
+  errorContext,
+} from "./utils";
 
 // {% include "filename" %}
 const reInclude = /{%\s*include (?:"|'|)([a-zA-z0-9_\-./\s]+)(?:"|'|)\s*%}/;
@@ -14,7 +17,7 @@ const reExtends = /{%\s*extends (?:"|'|)([a-zA-z0-9_\-./\s]+)(?:"|'|)\s*%}/;
  * @param {string} input
  * @param {{ fileName: FilePath, includesDir: FilePath, baseDir: FilePath }} options
  */
-module.exports.preProcess = async function preProcess(input, options) {
+export default async function preProcess(input, options) {
   const requireFiles = ["fileName", "baseDir", "includesDir"];
   for (const op of requireFiles) {
     if (!existsSync(options[op])) {
@@ -108,7 +111,7 @@ module.exports.preProcess = async function preProcess(input, options) {
     const promises = uniqueFiles.map(file =>
       fileMap.has(rel(file))
         ? Promise.resolve(fileMap.get(rel(file)))
-        : readFile(file, "utf8")
+        : readFile(file)
     );
 
     /** @type {string[]} */
@@ -221,9 +224,19 @@ module.exports.preProcess = async function preProcess(input, options) {
     const [match, name] = matches;
     const file = path.join(path.dirname(fileName), path.posix.normalize(name));
     const fname = rel(file);
-    const text = await readFile(file, "utf8");
+    const text = await readFile(file);
     fileMap.set(fname, text);
     const content = wrapDebugInfo(text, match.length, fname, rel(fileName));
     return input.replace(matches[0], content);
   }
-};
+}
+
+/** @param {string} file file path */
+function readFile(file) {
+  return new Promise((resolve, reject) => {
+    _readFile(file, "utf8", (err, content) => {
+      if (err) reject(err);
+      resolve(content);
+    });
+  });
+}

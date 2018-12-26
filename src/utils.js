@@ -122,7 +122,7 @@ function errorContext(pos, file, fileMap, ctx = 2) {
       Math.max(lineNum - ctx, 0),
       Math.min(lineNum + ctx + 1, lines.length)
     )
-    .concat(file === "" ? "" : ` File| ${file}:${lineNum + 1}:${pos - p + 1}`)
+    .concat(` File| ${file}:${lineNum + 1}:${pos - p + 1 || ""}`)
     .join("\n");
 }
 
@@ -233,7 +233,7 @@ class Buffer {
   }
 }
 
-module.exports = {
+export {
   addIndent,
   addLocal,
   asUnixPath,

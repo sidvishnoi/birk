@@ -1,5 +1,5 @@
-const filters = require("./filters");
-const { BirkError, errorContext } = require("./utils");
+import filters from "./filters";
+import { BirkError, errorContext } from "./utils";
 
 const rethrow = (err, ctx, BirkError, m) => {
   let msg = err.message;
@@ -9,10 +9,10 @@ const rethrow = (err, ctx, BirkError, m) => {
 
 const undef = (v, i) => !v ? `${i} is ${JSON.stringify(v)}` : "";
 
-module.exports = {
+export {
   filters,
   rethrow,
-  context: errorContext,
+  errorContext as context,
   BirkError,
   undef,
 };

@@ -1,6 +1,6 @@
 // @ts-check
 
-const { findTag, splitString, addLocal } = require("./utils");
+import { findTag, splitString, addLocal } from "./utils";
 
 /**
  * @typedef {import("./codegen.js").State} State
@@ -291,4 +291,4 @@ function getLoopComponents(args) {
   };
 }
 
-module.exports = tags;
+export default tags;

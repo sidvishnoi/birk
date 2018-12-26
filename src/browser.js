@@ -1,9 +1,4 @@
-const {
-  compileString,
-  renderString,
-} = require("./lib");
+import { compileString, renderString } from "./lib-common";
 
-module.exports = {
-  compile: compileString,
-  render: renderString,
-};
+export const compile = compileString;
+export const render = renderString;

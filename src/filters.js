@@ -70,4 +70,4 @@ const filters = {
 // set aliases
 filters.truncatewords = filters.truncate_words;
 
-module.exports = filters;
+export default filters;

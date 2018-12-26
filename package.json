@@ -5,13 +5,14 @@
     "node": ">=10.0.0"
   },
   "description": "A fast HTML template engine with syntax similar to Ruby's Liquid. Used in Bleu.",
-  "main": "index.js",
+  "main": "build/node.js",
   "directories": {
     "test": "test"
   },
   "scripts": {
     "test": "jest",
-    "lint": "eslint --fix src"
+    "lint": "eslint --fix src",
+    "build": "rollup -m --config"
   },
   "keywords": [
     "template-engine",
@@ -21,6 +22,8 @@
   "license": "MIT",
   "devDependencies": {
     "eslint": "^5.11.0",
-    "jest": "^23.6.0"
+    "jest": "^23.6.0",
+    "rollup": "^0.68.2",
+    "rollup-plugin-terser": "^3.0.0"
   }
 }

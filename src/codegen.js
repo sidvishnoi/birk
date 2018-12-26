@@ -1,17 +1,17 @@
 // @ts-check
-const {
+import {
   addLocal,
   BirkError,
   Buffer,
   errorContext2,
   VariableContext,
-} = require("./utils");
-const tags = require("./tags");
-const runtime = require("./runtime");
+}  from "./utils";
+import tags from "./tags";
+import * as runtime from "./runtime";
 
 /**
  * @typedef {import("./tokenize").Token} Token
- * @typedef {import("./lib").Options} Options
+ * @typedef {import("./lib-common").Options} Options
  * @typedef {{
  *  idx: number,
  *  fpos: number,
@@ -33,7 +33,7 @@ const runtime = require("./runtime");
 /**
  * @param {Token[]} tokens
  * @param {Map<string, string>} fileMap
- * @param {import("./lib").Options} conf
+ * @param {import("./lib-common").Options} conf
  */
 function main(tokens, fileMap, conf) {
   conf.tags = Object.assign({}, tags, conf.tags);
@@ -80,7 +80,7 @@ function main(tokens, fileMap, conf) {
   buf.addPlain("}");
 
   if (conf.inlineRuntime) {
-    buf.buf[runtimeLoc] = inlineRuntime(state, conf._runtime);
+    buf.buf[runtimeLoc] = inlineRuntime(state);
   }
 
   const fileMapSerialization = JSON.stringify([...fileMap.entries()]);
@@ -223,8 +223,8 @@ function handleBlocks(state) {
   }
 }
 
-function inlineRuntime(state, runtime) {
-  const { context, rethrow, undef, filters } = runtime;
+function inlineRuntime(state) {
+  const { context, rethrow, undef, filters } = state.conf._runtime;
   const r = [];
   r.push("const _r_ = {");
 
@@ -232,7 +232,7 @@ function inlineRuntime(state, runtime) {
     r.push("filters: {");
     for (const [filter, [fpos, file]] of state.filters.entries()) {
       if (filters.hasOwnProperty(filter)) {
-        const s = fmt(filters[filter].toString());
+        const s = filters[filter].toString();
         if (s.startsWith("(") || s.includes("=>")) {
           r.push(`${filter}: ${s},`);
         } else {
@@ -248,23 +248,12 @@ function inlineRuntime(state, runtime) {
     r.push("},");
   }
 
-  r.push(`context: ${fmt(context.toString())},`);
-  r.push(`BirkError: ${fmt(BirkError.toString())},`);
-  r.push(`rethrow: ${fmt(rethrow.toString())},`);
-  r.push(`undef: ${fmt(undef.toString())},`);
+  r.push(`context: ${context.toString()},`);
+  r.push(`BirkError: ${BirkError.toString()},`);
+  r.push(`rethrow: ${rethrow.toString()},`);
+  r.push(`undef: ${undef.toString()},`);
   r.push("};");
   return r.join("\n");
 }
 
-// strip whitespace for writing
-// TODO: make this simpler and faster
-function fmt(x) {
-  return x
-    .replace(/\s{2,}/g, "")
-    .replace(/\s(=|\+|-|\?|>|<|:)\s/g, "$1")
-    .replace(/(,|=|>)\s/g, "$1")
-    .replace(/\s(\{|\(|=|\+|-)/g, "$1")
-    .replace(/;\s*\}/g, "}");
-}
-
-module.exports = { generateCode: main };
+export default main;

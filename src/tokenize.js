@@ -1,5 +1,5 @@
 // @ts-check
-const { splitString, errorContext, BirkError, Stack } = require("./utils");
+import { splitString, errorContext, BirkError, Stack } from "./utils";
 
 /**
  * @typedef {{type: "raw", val: string, start: number, end: number, fpos: number}} RawToken
@@ -9,7 +9,7 @@ const { splitString, errorContext, BirkError, Stack } = require("./utils");
  * @param {string} input
  * @param {Map<string, string>} fileMap
  */
-module.exports.tokenize = function tokenize(input, fileMap) {
+export default function tokenize(input, fileMap) {
   /** @type {Token[]} */
   const tokens = [];
   const lookUpMap = new Map([["object", "{{"], ["tag", "{%"], ["_inc_", "{#"]]);
