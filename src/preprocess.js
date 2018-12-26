@@ -1,7 +1,7 @@
 // @ts-check
-// resolves {% include filename %} tags
+// resolves {% include filename %} and {% extends filename %} tags
 const path = require("path");
-const { readFile: _readFile } = require("fs");
+const { readFile: _readFile, existsSync } = require("fs");
 const readFile = require("util").promisify(_readFile);
 
 const { asUnixPath, addIndent, BirkError, errorContext } = require("./utils");
@@ -15,6 +15,13 @@ const reExtends = /{%\s*extends (?:"|'|)([a-zA-z0-9_\-./\s]+)(?:"|'|)\s*%}/;
  * @param {{ fileName: FilePath, includesDir: FilePath, baseDir: FilePath }} options
  */
 module.exports.preProcess = async function preProcess(input, options) {
+  const requireFiles = ["fileName", "baseDir", "includesDir"];
+  for (const op of requireFiles) {
+    if (!existsSync(options[op])) {
+      throw new Error(`Invalid options.${op}`);
+    }
+  }
+
   const { fileName, baseDir, includesDir } = options;
 
   /** @type {Map<FilePath, FilePath[]>} */
