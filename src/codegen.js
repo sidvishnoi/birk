@@ -10,30 +10,15 @@ import tags from "./tags";
 import * as runtime from "./runtime";
 
 /**
- * @typedef {import("./tokenize").Token} Token
- * @typedef {import("./lib-common").Options} Options
- * @typedef {{
- *  idx: number,
- *  fpos: number,
- *  file: string,
- *  buf: Buffer,
- *  locals: Set<string>,
- *  localsFullNames: Set<string>,
- *  filters: Map<string, [number, string]>,
- *  context: VariableContext,
- *  fileMap: Map<string, string>,
- *  warnings: Array<{ message: string, context: string }>,
- *  mixins: Map<string, { params: string[], tokens: Token[] }>,
- *  blocks: Map<string, { tokens: Token[], idx: number, file: string  }>,
- *  tokens: Token[],
- *  conf: Options,
- * }} State
+ * @typedef {import("..").Token} Token
+ * @typedef {import("..").Options} Options
+ * @typedef {import("..").State} State
  */
 
 /**
  * @param {Token[]} tokens
  * @param {Map<string, string>} fileMap
- * @param {import("./lib-common").Options} conf
+ * @param {Options} conf
  */
 function main(tokens, fileMap, conf) {
   conf.tags = Object.assign({}, tags, conf.tags);

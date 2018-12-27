@@ -16,6 +16,7 @@ export default function tokenize(input, fileMap) {
   const ptrStack = new Stack();
   ptrStack.push(0);
   const fileStack = new Stack();
+  fileStack.push("");
 
   // seems a fine limit to avoid infinite loop
   let MAX_TOKEN_COUNT = 4000;
@@ -44,6 +45,7 @@ export default function tokenize(input, fileMap) {
     }
 
     if (!MAX_TOKEN_COUNT--) {
+      // ideally never reached. keeping as a safety measure
       throw new Error("MAX_TOKEN_COUNT limit exceeded during tokenization.");
     }
   }
@@ -147,7 +149,7 @@ export default function tokenize(input, fileMap) {
    * @param {number} start start searching from index
    * @param {string} needleName for providing details in error message
    */
-  function search(needle, start, needleName = "") {
+  function search(needle, start, needleName) {
     const i = input.indexOf(needle, start + 2);
     if (i === -1) {
       const ctx = errorContext(ptrStack.v, fileStack.v, fileMap);

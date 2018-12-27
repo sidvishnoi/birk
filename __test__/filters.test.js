@@ -175,6 +175,7 @@ describe("Filters", () => {
 
   test("replace", () => {
     expect(render("{{ 'abab' | replace: 'a', 'b' }}")).toEqual("bbbb");
+    expect(render("{{ 'ab\"ab' | replace: '\"', '\\'' }}")).toEqual("ab'ab");
     expect(render("{{ 'ab' | replace: 'b', 'ba' }}")).toEqual("aba");
     expect(render("{{ 'abab' | replace: 'a' }}")).toEqual("bb");
     expect(render("{{ 'abab' | replace: 'a', '' }}")).toEqual("bb");
@@ -278,6 +279,7 @@ describe("Filters", () => {
   });
 
   test("times", () => {
+    expect(render("{{ 10 | times }}")).toEqual("10");
     expect(render("{{ 10 | times: 2 }}")).toEqual("20");
     expect(render("{{ '10' | times: 2 }}")).toEqual("20");
   });

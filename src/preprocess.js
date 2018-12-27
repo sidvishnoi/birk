@@ -224,7 +224,10 @@ export default async function preProcess(input, options) {
     const posExtends = input.search(reExtends);
     if (posExtends === -1) return false;
     const posFirstTag = input.search(/{[%|#]/);
-    return posFirstTag !== -1 || posFirstTag !== -1 && posExtends < posFirstTag;
+    return (
+      posFirstTag === -1
+      || (posFirstTag !== -1 && posExtends <= posFirstTag)
+    );
   }
 
   async function extend() {

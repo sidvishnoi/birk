@@ -6,20 +6,7 @@ import { BirkError } from "./utils";
 import * as runtime from "./runtime";
 
 /**
- * @typedef
- * {{
- *  fileName: string,
- *  baseDir: string,
- *  includesDir: string,
- *  compileDebug: boolean,
- *  inlineRuntime: boolean,
- *  raw: boolean,
- *  filters: { [name: string]: (args: any[]) => any },
- *  tags: import("./tags.js").Tags,
- *  _fileMap?: Map<string, string>,
- *  _runtime?: Runtime,
- *  _generator?: (code: string, inlineRuntime: boolean) => Executable
- * }} Options
+ * @typedef {import("..").Options} Options
  */
 
 /** @type {Options} */
@@ -44,12 +31,12 @@ function compileString(str, options) {
   const fileMap = options._fileMap || new Map().set("", str);
   const tokens = tokenize(str, fileMap);
   const out = generateCode(tokens, fileMap, options);
-  const { code, locals, warnings } = out;
+  const { code, locals, warnings, localsFullNames } = out;
   let fn;
   if (!options.raw && options._generator) {
     fn = options._generator(code, options.inlineRuntime);
   }
-  return { code, fn, locals, warnings };
+  return { code, fn, locals, warnings, localsFullNames };
 }
 
 /**

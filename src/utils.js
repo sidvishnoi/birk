@@ -1,19 +1,22 @@
 /**
  * Convert `foo(arg)`, `foo.bar(arg)`, `foo.bar(baz.foo(arg))` etc. => `arg`
- * then convert `foo.bar`, `foo[bar]` etc. to `foo`
  * @param {string} str
  */
-function getIdentifierBase(str) {
+function stripNonIdentifer(str) {
   const re = /\b[^()]+\((.*)\)$/;
   while (re.test(str)) {
     str = str.match(re)[1];
   }
-  for (let i = 0, length = str.length; i < length; ++i) {
-    if (str[i] === "." || str[i] === "[") {
-      return str.slice(0, i);
-    }
-  }
   return str;
+}
+
+/**
+ * Convert `foo.bar`, `foo[bar]` etc. to `foo`
+ * @param {string} str
+ */
+function getIdentifierBase(str) {
+  const pos = str.search(/\.|\[/);
+  return pos === -1 ? str : str.slice(0, pos);
 }
 
 /**
@@ -32,16 +35,21 @@ function isValidIdentifier(id) {
  * @param {string} id identifier
  */
 function isValidVariableName(id) {
-  return (
+  return id && (
     !/[\W]/.test(id) ||
     (id.startsWith("$") && isValidVariableName(id.replace(/^\$/)))
   );
 }
 
+/**
+ * @param {string} name
+ * @param {import("..").State} state
+ */
 function addLocal(name, state) {
   if (isValidIdentifier(name)) {
+    name = stripNonIdentifer(name);
     const id = getIdentifierBase(name);
-    if (!state.context.has(id)) {
+    if (isValidVariableName(id) && !state.context.has(id)) {
       state.locals.add(id);
       state.localsFullNames.add(name);
     }
@@ -52,7 +60,7 @@ const blockTags = new Set(["if", "for", "unless", "js", "comment", "raw"]);
 
 /**
  * @param {string} tag
- * @param {import("./codegen.js").State} state
+ * @param {import("..").State} state
  * @param {boolean} ignoreNesting
  * @returns {number} index of `lookingFor` in `state.tokens`
  */
@@ -159,7 +167,7 @@ function errorContext(pos, file, fileMap, ctx = 2) {
       Math.max(lineNum - ctx, 0),
       Math.min(lineNum + ctx + 1, lines.length)
     )
-    .concat(` File| ${file}:${lineNum + 1}:${pos - p + 1 || ""}`)
+    .concat(` File| ${file}:${lineNum + 1}:${pos - p + 1}`)
     .join("\n");
 }
 
@@ -176,12 +184,11 @@ function asUnixPath(str) {
  * Adds indentation to included file so the overall template has proper indendation
  * @param {number} indent
  * @param {string} str
- * @param {number} skipLine do not indent this line
  */
-function addIndent(indent, str, skipLine = -1) {
+function addIndent(indent, str) {
   return str
     .split("\n")
-    .map((s, i) => (i === skipLine ? s : " ".repeat(indent) + s))
+    .map(s => " ".repeat(indent) + s)
     .join("\n");
 }
 
@@ -200,10 +207,10 @@ class Stack extends Array {
 }
 
 class BirkError extends Error {
-  constructor(message, name = "", context = "") {
+  constructor(message, name, context) {
     super(message);
     this.name = `Birk${name || ""}Error`;
-    this.message += `\n${context}`;
+    if (context) this.message += `\n${context}`;
   }
 }
 
@@ -234,7 +241,7 @@ class VariableContext extends Array {
 }
 
 class Buffer {
-  constructor(debug = true) {
+  constructor(debug) {
     /** @type {string[]} */
     this.buf = [];
     this.debug = debug;
@@ -284,5 +291,6 @@ export {
   isValidVariableName,
   splitString,
   Stack,
+  stripNonIdentifer,
   VariableContext,
 };

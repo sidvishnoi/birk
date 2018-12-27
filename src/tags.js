@@ -10,8 +10,8 @@ import {
 } from "./utils";
 
 /**
- * @typedef {import("./codegen.js").State} State
- * @typedef {import("./tokenize.js").TagToken} Token
+ * @typedef {import("..").State} State
+ * @typedef {import("..").TagToken} Token
  * @typedef { (state: State, token?: Token) => void } TagHandler
  * @typedef {{ [name: string]: TagHandler }} Tags
  * @type {Tags}
@@ -201,6 +201,16 @@ const tags = {
     state.idx = end + 1;
   },
 
+  extends(state) {
+    // `extends` should not exist after preprocessing
+    // it means, extends wasn't the first tag in template
+    // or extends isn't registered (like in browser)
+    const ctx = errorContext2(state);
+    const msg = "Invalid use of `extends` tag." +
+      " Make sure extends is the first tag in template.";
+    throw new BirkError(msg, "Compile", ctx);
+  },
+
   block(state, { args }) {
     const end = findTag("endblock", state);
     const { idx: start, file } = state;
@@ -260,7 +270,7 @@ function getLoopComponents(args) {
     canLimitOffset = true;
     type = 2;
     const its = front.split(/\s*,\s*/);
-    its.forEach(i => ids.add(i));
+    its.forEach(i => i && ids.add(i));
     indexer = its[0];
     front = `[ ${front} ]`;
   } else {
@@ -270,7 +280,7 @@ function getLoopComponents(args) {
     ) {
       type = 1;
       const its = front.slice(1, -1).split(/\s*,\s*/);
-      its.forEach(i => ids.add(i.trim()));
+      its.forEach(i => i.trim() && ids.add(i.trim()));
     } else {
       ids.add(front);
     }

@@ -108,7 +108,7 @@ describe("Tags", () => {
 
   test("case-when-default", () => {
     const strNoBreak =
-      "{% case s %}" +
+      "{% case s %}\n" +
       "{% when 'foo' %}foo" +
       "{% when 'bar' %}bar" +
       "{% default %}default" +

@@ -42,6 +42,14 @@ export type ObjectToken = {
 
 export type Token = RawToken | TagToken | ObjectToken;
 
+interface Buffer {
+  buf: string[];
+  add(str: string, quoted: boolean): void;
+  addDebug(state: State): void;
+  addPlain(str: string): void;
+  toString(): string;
+}
+
 export type State = {
   idx: number;
   fpos: number;
@@ -59,22 +67,33 @@ export type State = {
   conf: Options;
 };
 
+type CompilerOutput = {
+  code: string;
+  fn: Function | undefined;
+  locals: Set<string>;
+  localsFullNames: Set<string>;
+  warnings: Array<{ message: string; context: string }>;
+};
+
 /**
  * @param {string} str template string (pre-processed)
  * @param {Options} options
  */
-export function compileString(str: string, options: Options);
+export function compileString(
+  str: string,
+  options: Options,
+): CompilerOutput;
 
 /**
  * @param str template string (pre-processed)
  * @param options
  */
-export async function compileStringAsync(str: string, options: Options);
+export async function compileStringAsync(str: string, options: Options): Promise<CompilerOutput>;
 
 /**
  * @param options
  */
-export async function compileFile(options: Options);
+export async function compileFile(options: Options): Promise<CompilerOutput>;
 
 /**
  * @param str template string (pre-processed)

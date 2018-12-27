@@ -53,6 +53,17 @@ describe("Tags - extends & block", () => {
   const baseDir = path.join(__dirname, "fixtures", "extends");
   const baseOptions = { baseDir, includesDir: baseDir };
 
+  test("Doesn't extend if extends is not first tag", async () => {
+    const opts = { fileName: path.join(baseDir, "no-extend.birk") };
+    const options = { ...baseOptions, ...opts };
+
+    try {
+      await renderFile({}, options);
+    } catch (e) {
+      expect(e.message).toMatch(/Invalid use of `extends` tag/i);
+    }
+  });
+
   test("Uses given blocks", async () => {
     const opts = { fileName: path.join(baseDir, "parent.birk") };
     const options = { ...baseOptions, ...opts };
