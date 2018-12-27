@@ -1,0 +1,6 @@
+SIMPLE
+{% include a.birk %}
+{% include "b.birk" %}
+{% include 'a.birk' %}
+{% include './b.birk' %}
+{% include style.css %}

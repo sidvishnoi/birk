@@ -14,7 +14,7 @@ import { readFile as _readFile } from "fs";
  * @param {string} str template string (pre-processed)
  * @param {Options} options
  */
-async function compileStringAsync(str, options) {
+async function compileStringAsync(str, options = {}) {
   options._generator = generatorNode;
   const processed = await preProcess(str, options);
   options._fileMap = processed.fileMap;
@@ -33,7 +33,10 @@ async function compileStringAsync(str, options) {
 /**
  * @param {Options} options
  */
-async function compileFile(options) {
+async function compileFile(options = {}) {
+  if (!options.fileName) {
+    throw new Error("options.fileName was not provided");
+  }
   options._generator = generatorNode;
   const content = await readFile(options.fileName, "utf8");
   return await compileStringAsync(content, options);
@@ -44,7 +47,7 @@ async function compileFile(options) {
  * @param {*} locals
  * @param {Options} options
  */
-async function renderStringAsync(str, locals, options) {
+async function renderStringAsync(str, locals = {}, options = {}) {
   options._generator = generatorNode;
   const { fn } = await compileStringAsync(str, options);
   return fn(locals, runtime);
@@ -54,18 +57,28 @@ async function renderStringAsync(str, locals, options) {
  * @param {*} locals
  * @param {Options} options
  */
-async function renderFile(locals, options) {
+async function renderFile(locals = {}, options = {}) {
   options._generator = generatorNode;
-  const content = await readFile(options.fileName, "utf8");
+  const content = await readFile(options.fileName);
   return await renderStringAsync(content, locals, options);
 }
 
-function compileString(str, options) {
+/**
+ * @param {string} str template string (pre-processed)
+ * @param {Options} options
+ */
+function compileString(str, options = {}) {
   options._generator = generatorNode;
   return _compileString(str, options);
 }
 
-function renderString(str, locals, options) {
+/**
+ * @preserve
+ * @param {string} str template string (pre-processed)
+ * @param {*} locals
+ * @param {Options} options
+ */
+function renderString(str, locals = {}, options = {}) {
   options._generator = generatorNode;
   return _renderString(str, locals, options);
 }
@@ -84,7 +97,7 @@ function generatorNode(code, inlineRuntime) {
     m._compile(code, "");
     return /** @type {Executable} */ m.exports;
   } catch (e) {
-    let ctx = createEvalErrorContext(e);
+    const ctx = createEvalErrorContext(e);
     throw new BirkError(e.toString(), "CompileEval", ctx);
   }
 }

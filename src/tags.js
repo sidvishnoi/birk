@@ -1,6 +1,13 @@
 // @ts-check
 
-import { findTag, splitString, addLocal } from "./utils";
+import {
+  addLocal,
+  BirkError,
+  findTag,
+  isValidVariableName,
+  splitString,
+  errorContext2,
+} from "./utils";
 
 /**
  * @typedef {import("./codegen.js").State} State
@@ -22,7 +29,7 @@ const tags = {
   },
 
   capture(state, { args }) {
-    const end = findTag("endcapture", state);
+    const end = findTag("endcapture", state, true);
 
     let capturedValue = "";
     for (let i = state.idx + 1; i < end; ++i) {
@@ -43,7 +50,7 @@ const tags = {
 
   raw(state) {
     const start = state.idx + 1;
-    const end = findTag("endraw", state);
+    const end = findTag("endraw", state, true);
     for (let i = start; i < end; ++i) {
       state.idx = i;
       state.buf.addDebug(state);
@@ -67,7 +74,7 @@ const tags = {
   },
 
   comment(state) {
-    const end = findTag("endcomment", state);
+    const end = findTag("endcomment", state, true);
     state.idx = end + 1;
   },
 
@@ -121,29 +128,36 @@ const tags = {
 
   endcase: blockEnd,
 
-  /*
-   * case1: for key in object
-   * case2: for value of array
-   * case3: for [el1, el2] of [[a, b], [a, b]]
-   * case4: for {a, b} of [{ a, b }, { a, b }]
-   * case5: for index, value of array
-   * case6: for key, value of object
+  /**
+   * Case1: `{% for value in array %}`
+   * Case2: `{% for [el1, el2] in [[a, b], [a, b]] %}`
+   * Case3: `{% for {a, b} in [{ a, b }, { a, b }] %}`
+   * Case4.1: `{% for index, value in array %}`
+   * Case4.2: `{% for key, value in object %}`
+   * Case4.3: `{% for index, value in array | offset: o | limit: l %}`
    */
   for(state, { args }) {
     findTag("endfor", state);
     const loop = getLoopComponents(args);
 
     state.context.create();
-    loop.ids.forEach(id => state.context.add(id));
+    loop.ids.forEach(id => {
+      if (!isValidVariableName(id)) {
+        const ctx = errorContext2(state);
+        throw new BirkError("Invalid identifiers in for loop", "Compile", ctx);
+      }
+      state.context.add(id);
+    });
 
     const { iterable } = loop;
     addLocal(iterable, state);
 
-    let output = `for (const ${loop.front} ${loop.join} `;
+    let output = `for (const ${loop.front} of `;
 
-    const rangeRegex = /(\w+)\.\.(\w+)/;
+    const rangeRegex = /(-?\w+)\.\.(-?\w+)/;
     if (rangeRegex.test(iterable)) {
-      output += createRange(iterable);
+      const range = createRange(iterable);
+      output += loop.type === 1 ? range : `Object.entries(${range})`;
     } else {
       output += loop.type === 1 ? iterable : `Object.entries(${iterable})`;
     }
@@ -152,9 +166,9 @@ const tags = {
     if (loop.offset || loop.limit) {
       const { offset, limit, indexer } = loop;
       output += "if (";
-      if (offset !== undefined) output += `${indexer} >= ${offset}`;
+      if (offset !== undefined) output += `${offset} <= ${indexer}`;
       if (offset && limit) output += " && ";
-      if (limit !== undefined) output += `${indexer} < ${limit}`;
+      if (limit !== undefined) output += `${indexer} <= ${limit}`;
       output += ") ";
     }
     output += "{";
@@ -164,7 +178,7 @@ const tags = {
 
     function createRange(str) {
       const [, start, end] = str.match(rangeRegex);
-      return `Array.from({ length: ${end}-${start}+1 }, (_, i) => ${start}+i)`;
+      return `Array.from({ length: ${end}- ${start}+1 }, (_, i) => ${start}+i)`;
     }
   },
   endfor: blockEnd,
@@ -225,8 +239,7 @@ function simpleToken(state, token) {
 }
 
 function getLoopComponents(args) {
-  let pos = args.indexOf("of");
-  if (pos === -1) pos = args.indexOf("in");
+  const pos = args.indexOf("in");
   if (pos === -1) throw new Error("Invalid for loop");
 
   let front = args.slice(0, pos).join(" ");
@@ -271,11 +284,11 @@ function getLoopComponents(args) {
   if (canLimitOffset) {
     const off = backItems.find(item => item.startsWith("offset"));
     if (off) {
-      offset = off.split(" ").map(s => s.trim())[0];
+      offset = off.replace(":", "").split(" ").map(s => s.trim())[1];
     }
     const lim = backItems.find(item => item.startsWith("limit"));
     if (lim) {
-      limit = lim.split(" ").map(s => s.trim())[0];
+      limit = lim.replace(":", "").split(" ").map(s => s.trim())[1];
     }
   }
 
@@ -284,7 +297,6 @@ function getLoopComponents(args) {
     indexer,
     front,
     ids,
-    join: args[pos],
     iterable,
     offset,
     limit,

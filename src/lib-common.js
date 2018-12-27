@@ -59,7 +59,7 @@ function compileString(str, options) {
  */
 function renderString(str, locals, options) {
   const { fn } = compileString(str, options);
-  return fn(locals, runtime);
+  return fn(locals || {}, runtime);
 }
 
 /**
@@ -76,13 +76,13 @@ function generatorCommon(code, inlineRuntime) {
   try {
     return /** @type {Executable} */ (new Function(...args, code));
   } catch (e) {
-    let ctx = createEvalErrorContext(e);
+    const ctx = createEvalErrorContext(e);
     throw new BirkError(e.toString(), "CompileEval", ctx);
   }
 }
 
 function createEvalErrorContext(error) {
-  if (error instanceof SyntaxError) {
+  if (error.__proto__.name === "SyntaxError") {
     const end = error.stack.search("SyntaxError:");
     let ctx = "Following might give some hints:\n";
     ctx += error.stack

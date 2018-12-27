@@ -1,0 +1,6 @@
+{
+  "root": false,
+  "parserOptions": {
+    "ecmaVersion": 2018
+  }
+}

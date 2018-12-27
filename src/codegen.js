@@ -151,7 +151,7 @@ function handleObject(state) {
     suffix += ")";
   }
 
-  if (state.conf.compileDebug) {
+  if (state.conf.compileDebug && /^[_A-Za-z]/.test(name) && !/\s/.test(name)) {
     state.buf.addPlain(
       `_msg_ = _r_.undef(${name}, \`${name}\`);`
     );

@@ -1,3 +1,0 @@
-<c-begin></c-begin>
-  {% include 'd.birk' %}
-<c-end></c-end>

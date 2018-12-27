@@ -18,10 +18,12 @@
     "template-engine",
     "liquid"
   ],
+  "types": "index.d.ts",
   "author": "Sid Vishnoi",
   "license": "MIT",
   "devDependencies": {
     "eslint": "^5.11.0",
+    "eslint-plugin-jest": "^22.1.2",
     "jest": "^23.6.0",
     "rollup": "^0.68.2",
     "rollup-plugin-terser": "^3.0.0"

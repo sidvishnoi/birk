@@ -14,6 +14,7 @@ export default function tokenize(input, fileMap) {
   const tokens = [];
   const lookUpMap = new Map([["object", "{{"], ["tag", "{%"], ["_inc_", "{#"]]);
   const ptrStack = new Stack();
+  ptrStack.push(0);
   const fileStack = new Stack();
 
   // seems a fine limit to avoid infinite loop
@@ -81,7 +82,7 @@ export default function tokenize(input, fileMap) {
     tokens.push({
       type: "object",
       fpos: ptrStack.v,
-      name: name.trim(),
+      name: name.trim().replace(/\n/g, "\\n"),
       filters,
       val: input.slice(from, end + 2),
       start: from,
@@ -167,4 +168,4 @@ export default function tokenize(input, fileMap) {
     }
     return i;
   }
-};
+}

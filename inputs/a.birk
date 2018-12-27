@@ -1,3 +1,0 @@
-<a-begin></a-begin>
-  {% include "b.birk" %}
-<a-end></a-end>

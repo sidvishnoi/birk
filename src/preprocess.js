@@ -18,6 +18,14 @@ const reExtends = /{%\s*extends (?:"|'|)([a-zA-z0-9_\-./\s]+)(?:"|'|)\s*%}/;
  * @param {{ fileName: FilePath, includesDir: FilePath, baseDir: FilePath }} options
  */
 export default async function preProcess(input, options) {
+  if (!options.fileName) {
+    return {
+      fileMap: new Map().set("", input),
+      dependencyTree: new Map(),
+      text: input,
+    };
+  }
+
   const requireFiles = ["fileName", "baseDir", "includesDir"];
   for (const op of requireFiles) {
     if (!existsSync(options[op])) {
@@ -122,7 +130,7 @@ export default async function preProcess(input, options) {
       const context = includeErrorContext(error, parentFile, substitutionMap);
       throw new BirkError(
         `Failed to resolve include.\n${error.message}`,
-        "BirkPreprocessorError",
+        "Preprocess",
         context
       );
     }
@@ -222,9 +230,28 @@ export default async function preProcess(input, options) {
   async function extend() {
     const matches = input.match(reExtends);
     const [match, name] = matches;
-    const file = path.join(path.dirname(fileName), path.posix.normalize(name));
+    const file = path.join(
+      path.dirname(fileName),
+      path.posix.normalize(name.trim())
+    );
     const fname = rel(file);
-    const text = await readFile(file);
+
+    let text;
+    try {
+      text = await readFile(file);
+    } catch (e) {
+      const lines = input.split("\n");
+      const lineNum = lines.findIndex(s => s.includes(match));
+      const ctx =
+        `>> ${lineNum + 1}`.padStart(5) +
+        `| ${lines[lineNum]}\n File| ${fileName}:${lineNum + 1}`;
+      throw new BirkError(
+        `Failed to resolve parent template ${file}`,
+        "Preprocess",
+        ctx
+      );
+    }
+
     fileMap.set(fname, text);
     const content = wrapDebugInfo(text, match.length, fname, rel(fileName));
     return input.replace(matches[0], content);

@@ -1,0 +1,4 @@
+{% extends parent.birk %}
+C1
+{% block content %}<content-c></content-c>{% endblock %}
+C2

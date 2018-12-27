@@ -1,0 +1,4 @@
+PARENT
+{% block header %}<header-p></header-p>{% endblock %}
+{% block content %}<content-p></content-p>{% endblock %}
+{% block footer %}<footer-p></footer-p>{% endblock %}

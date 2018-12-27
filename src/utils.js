@@ -1,8 +1,13 @@
 /**
- * Convert `foo.bar` or `foo[bar]` etc. to `foo`
+ * Convert `foo(arg)`, `foo.bar(arg)`, `foo.bar(baz.foo(arg))` etc. => `arg`
+ * then convert `foo.bar`, `foo[bar]` etc. to `foo`
  * @param {string} str
  */
 function getIdentifierBase(str) {
+  const re = /\b[^()]+\((.*)\)$/;
+  while (re.test(str)) {
+    str = str.match(re)[1];
+  }
   for (let i = 0, length = str.length; i < length; ++i) {
     if (str[i] === "." || str[i] === "[") {
       return str.slice(0, i);
@@ -11,8 +16,30 @@ function getIdentifierBase(str) {
   return str;
 }
 
+/**
+ * Test if id is a valid identifier i.e. starts with `[$_A-Za-z]`
+ * This removes the possibilities such as: `{ id }`, `[ id ]`
+ * Following are valid: `$user.name`, `_user['name']`, ` user `
+ * @param {string} id identifier
+ */
+function isValidIdentifier(id) {
+  return /^[$_A-Za-z]/.test(id.trim());
+}
+
+/**
+ * Tests if id is a valid simple JS variable name.
+ * @note It doesn't take into account JS keywords (for, if etc.)
+ * @param {string} id identifier
+ */
+function isValidVariableName(id) {
+  return (
+    !/[\W]/.test(id) ||
+    (id.startsWith("$") && isValidVariableName(id.replace(/^\$/)))
+  );
+}
+
 function addLocal(name, state) {
-  if (!/^(\[|\(|\{|"|'|\d)/.test(name) && !/("|')$/.test(name)) {
+  if (isValidIdentifier(name)) {
     const id = getIdentifierBase(name);
     if (!state.context.has(id)) {
       state.locals.add(id);
@@ -21,48 +48,58 @@ function addLocal(name, state) {
   }
 }
 
+const blockTags = new Set(["if", "for", "unless", "js", "comment", "raw"]);
+
 /**
  * @param {string} tag
  * @param {import("./codegen.js").State} state
+ * @param {boolean} ignoreNesting
  * @returns {number} index of `lookingFor` in `state.tokens`
  */
-function findTag(tag, state) {
+function findTag(tag, state, ignoreNesting = false) {
   const { tokens } = state;
   let { idx } = state;
-  /** @type string[] */
-  const stack = [];
-  const blockTags = new Set(["if", "for", "unless", "js", "comment", "raw"]);
-  while (++idx < tokens.length) {
-    if (tokens[idx].type === "tag") {
-      /** @type {import("./codegen.js").TagToken} */
-      const { name } = tokens[idx];
-      if (name === tag) {
-        if (!stack.length) {
-          return idx; // found tag!
-        } else {
-          const ctx = errorContext2(state, 4);
-          throw new BirkError("Invalid nesting.", "Compile", ctx);
-        }
-      } else if (name.startsWith("end")) {
-        if (stack[stack.length - 1] === name) {
-          stack.pop();
-        } else {
-          const ctx = errorContext2(state, 4);
-          throw new BirkError("Invalid nesting.", "Compile", ctx);
-        }
-      } else if (blockTags.has(name)) {
-        stack.push("end" + name);
+
+  if (ignoreNesting) {
+    while (++idx < tokens.length) {
+      if (tokens[idx].type === "tag" && tokens[idx].name === tag) {
+        return idx;
       }
     }
   }
 
+  /** @type string[] */
+  const stack = [];
+  while (!ignoreNesting && ++idx < tokens.length) {
+    if (tokens[idx].type !== "tag") continue;
+
+    /** @type {import("./codegen.js").TagToken} */
+    const { name } = tokens[idx];
+    if (name === tag) {
+      if (!stack.length) {
+        return idx; // found tag!
+      } else {
+        const ctx = errorContext2(state, 4);
+        throw new BirkError("Invalid nesting.", "Compile", ctx);
+      }
+    } else if (name.startsWith("end")) {
+      if (stack[stack.length - 1] === name) {
+        stack.pop();
+      } else {
+        const ctx = errorContext2(state, 4);
+        throw new BirkError("Invalid nesting.", "Compile", ctx);
+      }
+    } else if (blockTags.has(name)) {
+      stack.push("end" + name);
+    }
+  }
+
   let msg = `matching tag not found: "${tag}"`;
-  let ctx;
+  const ctx = errorContext2(state);
   if (tag.startsWith("end")) {
     msg = `tag ${state.tokens[state.idx].val} not closed`;
-    ctx = errorContext2(state);
   }
-  throw new BirkError(msg, "BirkCompileError", ctx);
+  throw new BirkError(msg, "Compile", ctx);
 }
 
 /**
@@ -215,7 +252,7 @@ class Buffer {
   addDebug(state) {
     state.fpos = state.tokens[state.idx].fpos;
     if (!this.debug) return;
-    let debugStr = `_pos_ = ${state.fpos};`;
+    const debugStr = `_pos_ = ${state.fpos};`;
     if (this.buf[this.buf.length - 1].startsWith("_pos_")) {
       this.buf[this.buf.length - 1] = debugStr;
     } else {
@@ -243,6 +280,8 @@ export {
   errorContext2,
   findTag,
   getIdentifierBase,
+  isValidIdentifier,
+  isValidVariableName,
   splitString,
   Stack,
   VariableContext,
