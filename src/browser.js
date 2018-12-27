@@ -1,4 +1,8 @@
 import { compileString, renderString } from "./lib-common";
+import * as runtime from "./runtime";
 
-export const compile = compileString;
-export const render = renderString;
+export {
+  compileString as compile,
+  renderString as render,
+  runtime,
+};

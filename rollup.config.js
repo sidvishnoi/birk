@@ -37,4 +37,15 @@ export default [
     plugins: [].concat(commonPlugins),
     external: ["fs", "path", "module"],
   },
+  {
+    input: "./src/runtime.js",
+    output: {
+      file: "./build/runtime.js",
+      format: "cjs",
+      freeze: false,
+      strict: false,
+      interop: false,
+    },
+    plugins: [].concat(commonPlugins),
+  }
 ];
