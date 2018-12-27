@@ -1,3 +1,5 @@
+export type Filters = { [name: string]: (args: any[]) => any };
+
 export type Options = {
   fileName: string;
   baseDir: string;
@@ -5,11 +7,34 @@ export type Options = {
   compileDebug: boolean;
   inlineRuntime: boolean;
   raw: boolean;
-  filters: { [name: string]: (args: any[]) => any };
+  filters: Filters;
   tags: { [name: string]: (state: State, token: TagToken) => void };
   _fileMap?: Map<string, string>;
   _generator?: (code: string, inlineRuntime: boolean) => Executable;
   _runtime?: Runtime;
+};
+
+export abstract class BirkError extends Error {
+  constructor(message: string, name: string, context?: string);
+}
+
+export type Runtime = {
+  filters: Filters;
+  rethrow: (
+    pos: number,
+    file: string,
+    runtime: Runtime,
+    err: Error,
+    msg: string,
+  ) => void;
+  context: (
+    pos: number,
+    file: string,
+    fileMap: Map<string, string>,
+    ctx = 2,
+  ) => string;
+  BirkError: BirkError;
+  undef: (value: any, id: string) => string;
 };
 
 export type RawToken = {
@@ -79,16 +104,16 @@ type CompilerOutput = {
  * @param {string} str template string (pre-processed)
  * @param {Options} options
  */
-export function compileString(
-  str: string,
-  options: Options,
-): CompilerOutput;
+export function compileString(str: string, options: Options): CompilerOutput;
 
 /**
  * @param str template string (pre-processed)
  * @param options
  */
-export async function compileStringAsync(str: string, options: Options): Promise<CompilerOutput>;
+export async function compileStringAsync(
+  str: string,
+  options: Options,
+): Promise<CompilerOutput>;
 
 /**
  * @param options
