@@ -5,8 +5,14 @@ const minify = terser({
   mangle: {
     keep_classnames: true,
     keep_fnames: true,
+    toplevel: true,
   },
 });
+
+const commonPlugins = [];
+if (process.env.BUILD !== "development") {
+  commonPlugins.push(minify);
+}
 
 export default [
   {
@@ -17,7 +23,7 @@ export default [
       name: "Birk",
       freeze: false,
     },
-    plugins: [minify],
+    plugins: [].concat(commonPlugins),
   },
   {
     input: "./src/node.js",
@@ -28,7 +34,7 @@ export default [
       strict: false,
       interop: false,
     },
-    plugins: [minify],
+    plugins: [].concat(commonPlugins),
     external: ["fs", "path", "module"],
   },
 ];

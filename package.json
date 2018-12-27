@@ -12,7 +12,8 @@
   "scripts": {
     "test": "jest",
     "lint": "eslint --fix src",
-    "build": "rollup -m --config"
+    "build": "rollup -m --config",
+    "build:dev": "rollup -m --config --environment BUILD:development"
   },
   "keywords": [
     "template-engine",
