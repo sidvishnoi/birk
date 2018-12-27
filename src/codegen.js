@@ -4,6 +4,7 @@ import {
   BirkError,
   Buffer,
   errorContext2,
+  isValidIdentifier,
   VariableContext,
 }  from "./utils";
 import tags from "./tags";
@@ -60,16 +61,18 @@ function main(tokens, fileMap, conf) {
   buf.addPlain("return _buf_;");
   // buf.addPlain("console.log(_buf_);");
   buf.addPlain("} catch (e) {");
-  buf.addPlain("const ctx = _r_.context(_pos_, _file_, _r_.fileMap);");
-  buf.addPlain("_r_.rethrow(e, ctx, _r_.BirkError, _msg_);");
+  const filtersSerialization = JSON.stringify(
+    [...state.filters.keys()].filter(f => !/\W/.test(f))
+  );
+  const fileMapSerialization = JSON.stringify([...fileMap.entries()]);
+  buf.addPlain(`_r_._filters = new Set(${filtersSerialization});`);
+  buf.addPlain(`_r_._fileMap = new Map(${fileMapSerialization});`);
+  buf.addPlain("_r_.rethrow(_pos_, _file_, _r_, e, _msg_);");
   buf.addPlain("}");
 
   if (conf.inlineRuntime) {
     buf.buf[runtimeLoc] = inlineRuntime(state);
   }
-
-  const fileMapSerialization = JSON.stringify([...fileMap.entries()]);
-  buf.buf[runtimeLoc] += `\n_r_.fileMap = new Map(${fileMapSerialization});`;
 
   if (state.filters.size) {
     const names = [...state.filters.keys()].filter(f => !/\W/.test(f));
@@ -136,10 +139,8 @@ function handleObject(state) {
     suffix += ")";
   }
 
-  if (state.conf.compileDebug && /^[_A-Za-z]/.test(name) && !/\s/.test(name)) {
-    state.buf.addPlain(
-      `_msg_ = _r_.undef(${name}, \`${name}\`);`
-    );
+  if (state.conf.compileDebug && isValidIdentifier(name)) {
+    state.buf.addPlain(`_msg_ = _r_.undef(${name}, \`${name}\`);`);
   }
   state.buf.add(prefix + name + suffix);
   if (state.conf.compileDebug) {

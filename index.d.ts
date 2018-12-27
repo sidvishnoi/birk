@@ -44,7 +44,7 @@ export type Token = RawToken | TagToken | ObjectToken;
 
 interface Buffer {
   buf: string[];
-  add(str: string, quoted: boolean): void;
+  add(str: string, quoted = false): void;
   addDebug(state: State): void;
   addPlain(str: string): void;
   toString(): string;
