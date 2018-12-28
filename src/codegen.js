@@ -11,9 +11,9 @@ import tags from "./tags";
 import * as runtime from "./runtime";
 
 /**
- * @typedef {import("..").Token} Token
- * @typedef {import("..").Options} Options
- * @typedef {import("..").State} State
+ * @typedef {import("birk").Token} Token
+ * @typedef {import("birk").Options} Options
+ * @typedef {import("birk").State} State
  */
 
 /**

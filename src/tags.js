@@ -10,11 +10,10 @@ import {
 } from "./utils";
 
 /**
- * @typedef {import("..").State} State
- * @typedef {import("..").TagToken} Token
- * @typedef { (state: State, token?: Token) => void } TagHandler
- * @typedef {{ [name: string]: TagHandler }} Tags
- * @type {Tags}
+ * @typedef {import("birk").State} State
+ * @typedef {import("birk").TagToken} Token
+ * @typedef {import("birk").Tag} Tag
+ * @type {{ [name: string]: Tag }}
  */
 const tags = {
   assign(state, { args }) {
@@ -237,17 +236,19 @@ const tags = {
 };
 
 // tag specific utils
+/** @param {State} state */
 function blockEnd(state) {
   state.buf.addPlain("}");
   state.context.destroy();
   state.idx += 1;
 }
-
+/** @param {State} state, @param {Token} token */
 function simpleToken(state, token) {
   state.buf.addPlain(token.name + ";");
   state.idx += 1;
 }
 
+/** @param {string[]} args */
 function getLoopComponents(args) {
   const pos = args.indexOf("in");
   if (pos === -1) throw new Error("Invalid for loop");

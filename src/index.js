@@ -86,6 +86,7 @@ function renderString(str, locals = {}, options = {}) {
 /**
  * @param {string} code
  * @param {boolean} inlineRuntime
+ * @typedef {import("birk").Executable} Executable
  * @returns {Executable}
  * @throws {BirkCompileEvalError}
  */

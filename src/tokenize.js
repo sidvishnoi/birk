@@ -2,10 +2,7 @@
 import { splitString, errorContext, BirkError, Stack } from "./utils";
 
 /**
- * @typedef {{type: "raw", val: string, start: number, end: number, fpos: number}} RawToken
- * @typedef {{type: "tag", val: string, start: number, end: number, fpos: number, name: string, args: string[]}} TagToken
- * @typedef {{type: "object", val: string, start: number, end: number,  fpos: number, name: string, filters: Array<{name: string, args: string[]}>}} ObjectToken
- * @typedef {RawToken | TagToken | ObjectToken} Token
+ * @typedef {import("birk").Token} Token
  * @param {string} input
  * @param {Map<string, string>} fileMap
  */

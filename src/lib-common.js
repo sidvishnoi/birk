@@ -5,9 +5,7 @@ import generateCode from "./codegen";
 import { BirkError } from "./utils";
 import * as runtime from "./runtime";
 
-/**
- * @typedef {import("..").Options} Options
- */
+/** @typedef {import("birk").Options} Options */
 
 /** @type {Options} */
 const defaultOptions = {
@@ -52,8 +50,7 @@ function renderString(str, locals, options) {
 /**
  * @param {string} code
  * @param {boolean} inlineRuntime
- * @typedef {import("./runtime.js")} Runtime
- * @typedef {(locals: *, runtime?: Runtime) => string} Executable
+ * @typedef {import("birk").Executable} Executable
  * @returns {Executable}
  * @throws {BirkCompileEvalError}
  */
