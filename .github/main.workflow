@@ -1,21 +1,21 @@
 workflow "Test" {
   on = "push"
-  resolves = ["test"]
+  resolves = ["Run tests"]
 }
 
-action "install" {
+action "Install dependencies" {
   uses = "actions/npm@e7aaefe"
-  runs = "install"
+  args = "install"
 }
 
-action "build" {
+action "Build" {
   uses = "actions/npm@e7aaefe"
-  runs = "build:dev"
-  needs = ["install"]
+  needs = ["Install dependencies"]
+  args = "run build:dev"
 }
 
-action "test" {
+action "Run tests" {
   uses = "actions/npm@e7aaefe"
-  needs = ["build"]
-  runs = "test"
+  needs = ["Build"]
+  args = "test"
 }
