@@ -1,5 +1,5 @@
-/** @type {import("..").renderFile} */
-const { renderFile } = require("../build/node");
+/** @type {import("..")} */
+const { renderFile } = require("../build/");
 const path = require("path");
 
 describe("Tags - include", () => {

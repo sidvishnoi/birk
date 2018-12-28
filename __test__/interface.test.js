@@ -1,5 +1,5 @@
 /** @type {import("..")} */
-const Birk = require("../build/node");
+const Birk = require("../build/");
 const path = require("path");
 
 describe("Birk Interface", () => {

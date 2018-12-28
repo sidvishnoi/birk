@@ -16,19 +16,19 @@ if (process.env.BUILD !== "development") {
 
 export default [
   {
-    input: "./src/browser.js",
+    input: "./src/lite.js",
     output: {
-      file: "./build/browser.js",
-      format: "iife",
+      file: "./build/lite.js",
+      format: "umd",
       name: "Birk",
       freeze: false,
     },
     plugins: [].concat(commonPlugins),
   },
   {
-    input: "./src/node.js",
+    input: "./src/index.js",
     output: {
-      file: "./build/node.js",
+      file: "./build/index.js",
       format: "cjs",
       freeze: false,
       strict: false,

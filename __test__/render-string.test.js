@@ -1,5 +1,5 @@
-/** @type {import("..").renderString} */
-const render = require("../build/node").renderString;
+/** @type {import("..").} */
+const { renderString: render } = require("../build/");
 
 describe("Basic rendering", () => {
   test("plain text", () => {

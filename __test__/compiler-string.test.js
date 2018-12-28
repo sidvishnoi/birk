@@ -1,5 +1,5 @@
-/** @type {import("..").compileString} */
-const compile = require("../build/node").compileString;
+/** @type {import("..")} */
+const { compileString: compile } = require("../build/");
 
 describe("compileString - extracts locals", () => {
   test("extracts locals from objects", () => {

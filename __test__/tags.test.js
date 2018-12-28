@@ -1,5 +1,5 @@
-/** @type {import("..").renderString} */
-const { renderString: render } = require("../build/node");
+/** @type {import("..")} */
+const { renderString: render } = require("../build/");
 
 describe("Tags", () => {
   test("assign", () => {
