@@ -1,0 +1,12 @@
+{
+  "name": "gulp-birk",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "author": "Sid Vishnoi <sidvishnoi8@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "birk": "github:sidvishnoi/birk#master",
+    "through2": "^3.0.0"
+  }
+}
