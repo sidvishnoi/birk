@@ -1,0 +1,26 @@
+{
+  "name": "birk-docs",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "build": "gulp"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sidvishnoi/birk.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/sidvishnoi/birk/issues"
+  },
+  "homepage": "https://github.com/sidvishnoi/birk#readme",
+  "devDependencies": {
+    "gulp": "^4.0.0",
+    "gulp-birk": "github:sidvishnoi/birk#gulp",
+    "gulp-rename": "^1.4.0",
+    "highlight.js": "^9.13.1",
+    "marked": "^0.5.2"
+  }
+}
