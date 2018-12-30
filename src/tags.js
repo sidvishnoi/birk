@@ -7,6 +7,7 @@ import {
   isValidVariableName,
   splitString,
   errorContext2,
+  isValidIdentifier,
 } from "./utils";
 
 /**
@@ -17,12 +18,18 @@ import {
  */
 const tags = {
   assign(state, { args }) {
-    const [name] = args;
+    const matches = args.match(/^([\w.[\]"'_$]+)/);
+    const name = matches ? matches[1] : "";
+    if (!isValidIdentifier(name)) {
+      const msg = "Assigning to invalid identifier.";
+      throw new BirkError(msg, "Compile", errorContext2(state));
+    }
+
     if (state.context.has(name)) {
-      state.buf.addPlain(`${args.join(" ")};`);
+      state.buf.addPlain(`${args};`);
     } else {
       state.context.add(name);
-      state.buf.addPlain(`let ${args.join(" ")};`);
+      state.buf.addPlain(`let ${args};`);
     }
     state.idx += 1;
   },
@@ -36,7 +43,7 @@ const tags = {
       capturedValue += state.tokens[i].val;
     }
 
-    const [name] = args;
+    const [name] = splitString(args, " ", 1);
     if (state.context.has(name)) {
       state.buf.addPlain(`${name} = \`${capturedValue}\`;`);
     } else {
@@ -80,7 +87,7 @@ const tags = {
   if(state, { args }) {
     findTag("endif", state);
     state.context.create();
-    state.buf.addPlain(`if (${args.join(" ")}) {`);
+    state.buf.addPlain(`if (${args}) {`);
     state.idx += 1;
   },
 
@@ -88,7 +95,7 @@ const tags = {
     findTag("endif", state);
     state.context.destroy();
     state.context.create();
-    state.buf.addPlain(`} else if (${args.join(" ")}) {`);
+    state.buf.addPlain(`} else if (${args}) {`);
     state.idx += 1;
   },
 
@@ -105,7 +112,8 @@ const tags = {
   case(state, { args }) {
     findTag("endcase", state);
     state.context.create();
-    state.buf.addPlain(`switch (${args[0]}) {`);
+    const [arg] = splitString(args, " ", 1);
+    state.buf.addPlain(`switch (${arg}) {`);
     const next = findTag("when", state);
     state.idx = next;
   },
@@ -115,7 +123,8 @@ const tags = {
     if (!state.buf.buf[state.buf.buf.length - 1].startsWith("switch")) {
       state.buf.buf[state.buf.buf.length - 1] = "";
     }
-    state.buf.addPlain(`case ${args[0]}:`);
+    const [arg] = splitString(args, " ", 1);
+    state.buf.addPlain(`case ${arg}:`);
     state.idx++;
   },
 
@@ -128,22 +137,31 @@ const tags = {
   endcase: blockEnd,
 
   /**
-   * Case1: `{% for value in array %}`
+   * Case1: `{% for value in iterable %}`
    * Case2: `{% for [el1, el2] in [[a, b], [a, b]] %}`
    * Case3: `{% for {a, b} in [{ a, b }, { a, b }] %}`
-   * Case4.1: `{% for index, value in array %}`
-   * Case4.2: `{% for key, value in object %}`
-   * Case4.3: `{% for index, value in array | offset: o | limit: l %}`
+   * Case4: `{% for indexer, value in iterable %}`
+   * Along with two filters: limit and index.
+   *
+   * The output (excluding filters) is always:
+   *  ``` js
+   *  for (const [indexer, value] of Object.entries(iterable))
+   *  ```
+   *  indexer evaluates to a string (and not number)
+   *  value can be a simple identifier/array literal/object literal.
    */
-  for(state, { args }) {
+  for(state, { args, filters }) {
     findTag("endfor", state);
     const loop = getLoopComponents(args);
+    if (!loop.indexer) loop.indexer = "_" + state.context.length;
 
     state.context.create();
-    loop.ids.forEach(id => {
+    loop.ids.forEach((id, i) => {
+      if (!id && i === 0 && loop.ids.length !== 1) return;
       if (!isValidVariableName(id)) {
         const ctx = errorContext2(state);
-        throw new BirkError("Invalid identifiers in for loop", "Compile", ctx);
+        const msg = `Invalid identifier "${id}" in for loop`;
+        throw new BirkError(msg, "Compile", ctx);
       }
       state.context.add(id);
     });
@@ -151,23 +169,23 @@ const tags = {
     const { iterable } = loop;
     addLocal(iterable, state);
 
-    let output = `for (const ${loop.front} of `;
-
     const rangeRegex = /(-?\w+)\.\.(-?\w+)/;
-    if (rangeRegex.test(iterable)) {
-      const range = createRange(iterable);
-      output += loop.type === 1 ? range : `Object.entries(${range})`;
-    } else {
-      output += loop.type === 1 ? iterable : `Object.entries(${iterable})`;
-    }
-    output += ") ";
+    const itr = rangeRegex.test(iterable) ? createRange(iterable) : iterable;
+    const { indexer, value } = loop;
 
-    if (loop.offset || loop.limit) {
-      const { offset, limit, indexer } = loop;
+    state.buf.addPlain(`_r_.uniter(${itr}, \`${itr}\`);`);
+    let output = `for (const [${indexer}, ${value}] of Object.entries(${itr}))`;
+
+    const loopFilters = filters.filter(
+      f => f.name === "offset" || f.name === "limit"
+    );
+    if (loopFilters.length) {
+      const offset = loopFilters.find(f => f.name === "offset");
+      const limit = loopFilters.find(f => f.name === "limit");
       output += "if (";
-      if (offset !== undefined) output += `${offset} <= ${indexer}`;
+      if (offset !== undefined) output += `${offset.args[0]} <= ${indexer}`;
       if (offset && limit) output += " && ";
-      if (limit !== undefined) output += `${indexer} <= ${limit}`;
+      if (limit !== undefined) output += `${indexer} <= ${limit.args[0]}`;
       output += ") ";
     }
     output += "{";
@@ -175,6 +193,7 @@ const tags = {
     state.buf.addPlain(output);
     state.idx += 1; // end + 1;
 
+    /** @param {string} str */
     function createRange(str) {
       const [, start, end] = str.match(rangeRegex);
       return `Array.from({ length: ${end}- ${start}+1 }, (_, i) => ${start}+i)`;
@@ -190,10 +209,22 @@ const tags = {
     state.idx += 1;
   },
 
-  mixin(state, { args }) {
+  mixin(state, { args, val }) {
     const start = state.idx;
     const end = findTag("endmixin", state);
-    const [mixinName, ...params] = args;
+    const [mixinName, _params] = splitString(args, ":", 2);
+    if (mixinName.includes(" ")) {
+      const suggestion = val.replace(mixinName, mixinName.replace(" ", ": "));
+      const msg = `Invalid mixin declaration. Did you mean "${suggestion}"?`;
+      throw new BirkError(msg, "Parse", errorContext2(state));
+    }
+    const [...params] = splitString(_params, ",").filter(s => s.trim());
+    params.forEach(param => {
+      if (!param.includes(" ")) return;
+      const suggestion = val.replace(param, param.replace(" ", ", "));
+      const msg = `Invalid mixin declaration. Did you mean "${suggestion}"?`;
+      throw new BirkError(msg, "Parse", errorContext2(state));
+    });
     // mixin code is generated at later stage
     const tokens = state.tokens.slice(start + 1, end);
     state.mixins.set(mixinName, { params, tokens });
@@ -205,7 +236,8 @@ const tags = {
     // it means, extends wasn't the first tag in template
     // or extends isn't registered (like in browser)
     const ctx = errorContext2(state);
-    const msg = "Invalid use of `extends` tag." +
+    const msg =
+      "Invalid use of `extends` tag." +
       " Make sure extends is the first tag in template.";
     throw new BirkError(msg, "Compile", ctx);
   },
@@ -213,7 +245,7 @@ const tags = {
   block(state, { args }) {
     const end = findTag("endblock", state);
     const { idx: start, file } = state;
-    const [name] = args;
+    const [name] = splitString(args, " ", 1);
     // block code is generated at later stage
     const tokens = state.tokens.slice(start + 1, end);
     let idx;
@@ -228,9 +260,8 @@ const tags = {
   },
 
   _file_(state, { args }) {
-    const file = args[1];
-    state.file = file;
-    state.buf.addPlain(`_file_ = "${file}";`);
+    state.file = args;
+    state.buf.addPlain(`_file_ = "${state.file}";`);
     state.idx += 1;
   },
 };
@@ -248,70 +279,78 @@ function simpleToken(state, token) {
   state.idx += 1;
 }
 
-/** @param {string[]} args */
+/** Split loop args, i.e., content after `{% for` until first `|` or till `%}`
+ * into loop's components:
+ * front: variable names
+ * Loop types:
+ *  a: for value in iterable
+ *  b: for indexer, value in iterable
+ *  value can be:
+ *    1. basic identifier
+ *    2. object literal
+ *    3. array literal
+ *  key is an identifier
+ * @param {string} args
+ * */
 function getLoopComponents(args) {
-  const pos = args.indexOf("in");
-  if (pos === -1) throw new Error("Invalid for loop");
+  const [front, iterable] = args.split(" in ", 2);
+  if (!iterable) throw new Error("Invalid for loop");
+  const result = {};
+  result.iterable = iterable;
 
-  let front = args.slice(0, pos).join(" ");
-  const ids = new Set();
-
-  let type;
-  let indexer;
-  if (pos === 1) type = 1;
-
-  const idStart = args[0][0];
-  const idEnd = args[pos - 1].slice(-1);
-
-  let canLimitOffset = false;
-
-  if (front.includes(",") && idStart !== "[" && idStart !== "{") {
-    // for key, val of object
-    // for idx, val of array
-    canLimitOffset = true;
-    type = 2;
-    const its = front.split(/\s*,\s*/);
-    its.forEach(i => i && ids.add(i));
-    indexer = its[0];
-    front = `[ ${front} ]`;
-  } else {
-    if (
-      (idStart === "{" && idEnd === "}") ||
-      (idStart === "[" && idEnd === "]")
-    ) {
-      type = 1;
-      const its = front.slice(1, -1).split(/\s*,\s*/);
-      its.forEach(i => i.trim() && ids.add(i.trim()));
-    } else {
-      ids.add(front);
-    }
-  }
-
-  const back = args.slice(pos + 1).join(" ");
-  const backItems = splitString(back, "|").map(s => s.trim());
-  const iterable = backItems[0];
-
-  let offset, limit;
-  if (canLimitOffset) {
-    const off = backItems.find(item => item.startsWith("offset"));
-    if (off) {
-      offset = off.replace(":", "").split(" ").map(s => s.trim())[1];
-    }
-    const lim = backItems.find(item => item.startsWith("limit"));
-    if (lim) {
-      limit = lim.replace(":", "").split(" ").map(s => s.trim())[1];
-    }
-  }
-
-  return {
-    type,
-    indexer,
-    front,
-    ids,
-    iterable,
-    offset,
-    limit,
+  // remove starting { or [ and ending } or ], then split at comma
+  /** @type {(s: string) => string[]} */
+  const split = s =>
+    s
+      .slice(1, -1)
+      .split(",")
+      .map(i => i.trim());
+  /** @param {string[]} ids, @param {string} type */
+  const loopValue = (ids, type) => {
+    if (type[1] === "2") return `{${ids.join(", ")}}`;
+    if (type[1] === "3") return `[${ids.join(", ")}]`;
+    return ids[0];
   };
+
+  if (!front.includes(",")) {
+    result.type = "a";
+    if (front.startsWith("{")) {
+      result.type += "2";
+      result.ids = split(front);
+    } else if (front.startsWith("[")) {
+      result.type += "3";
+      result.ids = split(front);
+    } else {
+      result.ids = [front];
+      result.type += "1";
+    }
+    result.value = loopValue(result.ids, result.type);
+    return result;
+  }
+
+  let value = front;
+  if (/^\w+,/.test(front)) {
+    result.type = "b";
+    const [indexer, val] = splitString(front, ",", 1);
+    result.indexer = indexer;
+    value = val.replace(/^\s*,/, "").trim();
+  } else {
+    result.type = "a";
+  }
+
+  if (value.startsWith("{")) {
+    result.type += "2";
+    result.ids = split(value);
+  } else if (value.startsWith("[")) {
+    result.type += "3";
+    result.ids = split(value);
+  } else {
+    result.type += "1";
+    result.ids = [value];
+  }
+
+  result.value = loopValue(result.ids, result.type);
+  return result;
 }
 
 export default tags;

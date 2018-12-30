@@ -108,18 +108,18 @@ describe("Tags", () => {
 
   test("case-when-default", () => {
     const strNoBreak =
-      "{% case s %}\n" +
+      "{% case sw %}\n" +
       "{% when 'foo' %}foo" +
       "{% when 'bar' %}bar" +
       "{% default %}default" +
       "{% endcase %}";
-    expect(render("{% assign s = 'foo' %}" + strNoBreak).trim()).toEqual(
+    expect(render("{% assign sw = 'foo' %}" + strNoBreak).trim()).toEqual(
       "foobardefault"
     );
-    expect(render("{% assign s = 'bar' %}" + strNoBreak).trim()).toEqual(
+    expect(render("{% assign sw = 'bar' %}" + strNoBreak).trim()).toEqual(
       "bardefault"
     );
-    expect(render("{% assign s = 'baz' %}" + strNoBreak).trim()).toEqual(
+    expect(render("{% assign sw = 'baz' %}" + strNoBreak).trim()).toEqual(
       "default"
     );
 
@@ -178,7 +178,7 @@ describe("Tags", () => {
       expect(() => render(err1)).toThrow(/items is not iterable/i);
 
       const err2 = "{% for user.name in items %}{% endfor %}";
-      expect(() => render(err2)).toThrow(/Invalid identifiers in for loop/i);
+      expect(() => render(err2)).toThrow(/Invalid identifier .+ for loop/i);
     });
 
     test("simple with range: for value in range", () => {
@@ -218,10 +218,10 @@ describe("Tags", () => {
       expect(render(str4).replace(/\s/g, "")).toEqual("abc");
 
       const err1 = "{% for [ in items %}{% endfor %}";
-      expect(() => render(err1)).toThrow(/Invalid identifiers in for loop/i);
+      expect(() => render(err1)).toThrow(/Invalid identifier .+ for loop/i);
 
       const err2 = "{% for [user.name] in items %}{% endfor %}";
-      expect(() => render(err2)).toThrow(/Invalid identifiers in for loop/i);
+      expect(() => render(err2)).toThrow(/Invalid identifier .+ for loop/i);
     });
 
     test("object destructing: for {a, b} in [{ a, b }, { a, b }]", () => {
@@ -248,10 +248,10 @@ describe("Tags", () => {
       expect(render(str3).replace(/\s/g, "")).toEqual("123");
 
       const err1 = "{% for { in items %}{% endfor %}";
-      expect(() => render(err1)).toThrow(/Invalid identifiers in for loop/i);
+      expect(() => render(err1)).toThrow(/Invalid identifier .+ for loop/i);
 
       const err2 = "{% for { a.b} in items %}{% endfor %}";
-      expect(() => render(err2)).toThrow(/Invalid identifiers in for loop/i);
+      expect(() => render(err2)).toThrow(/Invalid identifier .+ for loop/i);
     });
 
     test("key-value: for key, value in iterable", () => {
@@ -267,8 +267,8 @@ describe("Tags", () => {
       const str4 = "{% for i, v in 2..5 %}{{ i }}:{{ v }},{% endfor %}";
       expect(render(str4)).toEqual("0:2,1:3,2:4,3:5,");
 
-      const forgive1 = "{% for i, in [10,20] %}{{ i }}:{{ v }},{% endfor %}";
-      expect(render(forgive1)).toEqual("0:undefined,1:undefined,");
+      const err1 = "{% for i, in [10,20] %}{% endfor %}";
+      expect(() => render(err1)).toThrow(/Invalid identifier .+ for loop/i);
     });
 
     test("key-value with limit and offset", () => {
@@ -277,32 +277,32 @@ describe("Tags", () => {
       const lim1 = "{% for i, v in [10,20,30,40,50] | limit: 2 %}" + end;
       expect(render(lim1)).toEqual("0:10,1:20,2:30,");
 
-      const lim2 = "{% for i, v in [10,20,30,40,50] | limit 0 %}" + end;
+      const lim2 = "{% for i, v in [10,20,30,40,50] | limit: 0 %}" + end;
       expect(render(lim2)).toEqual("0:10,");
 
-      const lim3 = "{% for i, v in [10,20,30] | limit 100 %}" + end;
+      const lim3 = "{% for i, v in [10,20,30] | limit: 100 %}" + end;
       expect(render(lim3)).toEqual("0:10,1:20,2:30,");
 
-      const lim4 = "{% for i, v in [10,20,30,40,50] | limit -1 %}" + end;
+      const lim4 = "{% for i, v in [10,20,30,40,50] | limit: -1 %}" + end;
       expect(render(lim4)).toEqual("");
 
       const off1 = "{% for i, v in [10,20,30,40,50] | offset: 2 %}" + end;
       expect(render(off1)).toEqual("2:30,3:40,4:50,");
 
-      const off2 = "{% for i, v in [10,20,30] | offset 10 %}" + end;
+      const off2 = "{% for i, v in [10,20,30] | offset: 10 %}" + end;
       expect(render(off2)).toEqual("");
 
-      const off3 = "{% for i, v in [10,20,30] | offset 0 %}" + end;
+      const off3 = "{% for i, v in [10,20,30] | offset: 0 %}" + end;
       expect(render(off3)).toEqual("0:10,1:20,2:30,");
 
       const beg = "{% for i, v in [10,20,30,40,50]";
-      const str1 = beg + "| offset 1 | limit 3 %}" + end;
+      const str1 = beg + "| offset: 1 | limit: 3 %}" + end;
       expect(render(str1)).toEqual("1:20,2:30,3:40,");
 
-      const str2 = beg + "| limit 2 | offset 1 %}" + end;
+      const str2 = beg + "| limit: 2 | offset: 1 %}" + end;
       expect(render(str2)).toEqual("1:20,2:30,");
 
-      const str3 = beg + "| offset 10 | limit 3 %}" + end;
+      const str3 = beg + "| offset: 10 | limit: 3 %}" + end;
       expect(render(str3)).toEqual("");
     });
 
@@ -342,18 +342,18 @@ describe("Tags", () => {
     test("mixin", () => {
       const mixin1 = "{% mixin greet %}Hi!{% endmixin %}";
       expect(render(mixin1 + "{% +greet %}")).toEqual("Hi!");
-      expect(render(mixin1 + "{% +greet 'Sid' %}")).toEqual("Hi!");
+      expect(render(mixin1 + "{% +greet: 'Sid' %}")).toEqual("Hi!");
 
-      const mixin2 = "{% mixin greet name %}Hi {{ name }}{% endmixin %}";
-      expect(render(mixin2 + "{% +greet 'Sid' %}")).toEqual("Hi Sid");
-      expect(render(mixin2 + "{% +greet 1234 %}")).toEqual("Hi 1234");
+      const mixin2 = "{% mixin greet: name %}Hi {{ name }}{% endmixin %}";
+      expect(render(mixin2 + "{% +greet: 'Sid' %}")).toEqual("Hi Sid");
+      expect(render(mixin2 + "{% +greet: 1234 %}")).toEqual("Hi 1234");
       expect(render(mixin2 + "{% +greet %}")).toEqual("Hi undefined");
-      expect(render(mixin2 + "{% +greet 1 %} and {% +greet 2 %}")).toEqual(
+      expect(render(mixin2 + "{% +greet: 1 %} and {% +greet 2 %}")).toEqual(
         "Hi 1 and Hi 2"
       );
 
-      const mixin3 = "{% mixin add a b %}{{ a | plus: b }}{% endmixin %}";
-      expect(render(mixin3 + "{% +add 2 3 %}")).toEqual("5");
+      const mixin3 = "{% mixin add: a, b %}{{ a | plus: b }}{% endmixin %}";
+      expect(render(mixin3 + "{% +add 2, 3 %}")).toEqual("5");
       expect(render(mixin3 + "{% +add 2 %}")).toEqual("NaN");
       expect(render(mixin3 + "{% +add %}")).toEqual("NaN");
     });

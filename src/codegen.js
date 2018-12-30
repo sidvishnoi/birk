@@ -118,7 +118,7 @@ function generateCode(tokens, state) {
 
 /**
  * @param {State} state
- * @typedef {import("./tokenize.js").ObjectToken} ObjectToken
+ * @typedef {import("birk").ObjectToken} ObjectToken
  */
 function handleObject(state) {
   const token = /** @type {ObjectToken} */ (state.tokens[state.idx]);
@@ -151,7 +151,7 @@ function handleObject(state) {
 
 /**
  * @param {State} state
- * @typedef {import("./tokenize.js").TagToken} TagToken
+ * @typedef {import("birk").TagToken} TagToken
  */
 function handleTag(state) {
   const idx = state.idx;
@@ -161,8 +161,8 @@ function handleTag(state) {
 
   if (name.startsWith("+")) {
     // is a mixin call
-    const mixinName = `_mixin_${name.substr(1)}`;
-    const mixinArgs = token.args.join(", ");
+    const mixinName = `_mixin_${name.substr(1).replace(/:$/, "")}`;
+    const mixinArgs = token.args;
     state.buf.addPlain(`${mixinName}(${mixinArgs})`);
     state.idx += 1;
     return;
@@ -210,7 +210,7 @@ function handleBlocks(state) {
 }
 
 function inlineRuntime(state) {
-  const { context, rethrow, undef, filters } = state.conf._runtime;
+  const { context, rethrow, undef, uniter, filters } = state.conf._runtime;
   const r = [];
   r.push("const _r_ = {");
 
@@ -238,6 +238,7 @@ function inlineRuntime(state) {
   r.push(`BirkError: ${BirkError.toString()},`);
   r.push(`rethrow: ${rethrow.toString()},`);
   r.push(`undef: ${undef.toString()},`);
+  r.push(`uniter: ${uniter.toString()},`);
   r.push("};");
   return r.join("\n");
 }

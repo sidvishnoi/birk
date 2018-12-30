@@ -67,7 +67,8 @@ declare module "birk" {
     end: number;
     fpos: number;
     name: string;
-    args: string[];
+    args: string;
+    filters: Array<{ name: string; args: string[] }>,
   };
 
   export type ObjectToken = {

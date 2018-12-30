@@ -3,7 +3,7 @@ import { BirkError, errorContext } from "./utils";
 
 const rethrow = (pos, file, runtime, err, msg) => {
   const reFilterUndef = /([$\w]+) is not a function/;
-  let message = err.message;
+  let message = err ? err.message : "";
   if (reFilterUndef.test(message)) {
     const filterName = message.match(reFilterUndef)[1];
     if (runtime._filters.has(filterName)) {
@@ -18,6 +18,11 @@ const rethrow = (pos, file, runtime, err, msg) => {
 };
 
 const undef = (v, i) => !v ? `${i} is ${JSON.stringify(v)}` : "";
+const uniter = (v, i) => {
+  if (!v || typeof v === "number") {
+    throw new Error(`${i} is not iterable`);
+  }
+};
 
 export {
   filters,
@@ -25,4 +30,5 @@ export {
   errorContext as context,
   BirkError,
   undef,
+  uniter,
 };

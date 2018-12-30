@@ -132,14 +132,14 @@ function splitString(str, ch, limit = 999) {
     } else if (c === ch && !marker) {
       const len = result.push(str.slice(start, i));
       start = i + 1;
-      if (len > limit) return result;
+      if (len == limit) break;
     }
     ++i;
   }
-  if (start <= length) {
+  if (start <= length && result.length < limit) {
     result.push(str.slice(start, i));
   }
-  return result;
+  return result.concat(str.slice(i)).map(s => s.trim());
 }
 
 /**

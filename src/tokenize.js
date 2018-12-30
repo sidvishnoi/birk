@@ -69,15 +69,7 @@ export default function tokenize(input, fileMap) {
     const end = search("}}", from, "ending object token");
     const match = input.slice(from + 2, end).trim();
     const [name, ..._filters] = splitString(match, "|");
-
-    /** @type {Array<{name: string, args: string[]}>}  */
-    const filters = [];
-    for (const filter of _filters) {
-      const [filterName, _args] = splitString(filter, ":");
-      const args = _args ? splitString(_args, ",").filter(s => s.trim()) : [];
-      filters.push({ name: filterName.trim(), args });
-    }
-
+    const filters = parseFilters(_filters);
     tokens.push({
       type: "object",
       fpos: ptrStack.v,
@@ -95,13 +87,15 @@ export default function tokenize(input, fileMap) {
   function eatTag(from) {
     const end = search("%}", from, "ending tag token");
     const match = input.slice(from + 2, end).trim();
-    const [name, ..._args] = splitString(match, " ");
-    const args = _args.filter(s => s.trim());
+    const [tag, ..._filters] = splitString(match, "|");
+    const filters = parseFilters(_filters);
+    const [name, args] = splitString(tag, " ", 1);
     tokens.push({
       type: "tag",
       fpos: ptrStack.v,
-      name: name.trim(),
+      name,
       args,
+      filters,
       val: input.slice(from, end + 2),
       start: from,
       end: end + 2,
@@ -131,7 +125,8 @@ export default function tokenize(input, fileMap) {
       type: "tag",
       fpos,
       name: "_file_",
-      args: [type, file],
+      args: file,
+      filters: [],
       val: input.slice(from, end + 2),
       start: from,
       end: end + 2,
@@ -166,5 +161,28 @@ export default function tokenize(input, fileMap) {
       }
     }
     return i;
+  }
+
+  /**
+   * @param {string[]} list an array built by splitting a string at `|`
+   */
+  function parseFilters(list) {
+    // splitString returns text remaining after split with a limit as last item
+    if (list[list.length - 1] === "") list.pop();
+
+    const filters = [];
+    for (const filter of list) {
+      const [filterName, _args] = splitString(filter, ":", 2);
+      const args = _args ? splitString(_args, ",").filter(s => s.trim()) : [];
+      const name = filterName.trim();
+      if (name.includes(" ")) {
+        const ctx = errorContext(ptrStack.v + 2, fileStack.v, fileMap);
+        const suggestion = name.replace(" ", ": ");
+        const msg = `Invalid filter usage. Did you mean "${suggestion}"?`;
+        throw new BirkError(msg, "Parse", ctx);
+      }
+      filters.push({ name, args });
+    }
+    return filters;
   }
 }
