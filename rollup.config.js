@@ -41,7 +41,8 @@ export default [
     input: "./src/runtime.js",
     output: {
       file: "./build/runtime.js",
-      format: "cjs",
+      format: "umd",
+      name: "birkRuntime",
       freeze: false,
       strict: false,
       interop: false,
