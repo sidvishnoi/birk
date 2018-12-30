@@ -86,10 +86,11 @@ export default async function preProcess(input, options) {
       file
     );
 
-    for (const { line, indent, index } of matchedLines) {
+    for (const { line, indent, index, match } of matchedLines) {
       const substitution = addIndent(indent, substitutions[index]);
       // recursive call
-      lines[line] = await substitute(substitution, rel(includedFiles[index]));
+      const text = await substitute(substitution, rel(includedFiles[index]));
+      lines[line] = lines[line].replace(match, text);
     }
 
     return lines.join("\n");

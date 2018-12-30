@@ -1,6 +1,6 @@
 SIMPLE
-{% include a.birk %}
+<div>{% include a.birk %}</div>
 {% include "b.birk" %}
-{% include 'a.birk' %}
+<p>{% include 'a.birk' %}</p>
 {% include './b.birk' %}
 {% include style.css %}

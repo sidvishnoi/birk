@@ -12,7 +12,9 @@ describe("Tags - include", () => {
     const options = { ...baseOptions, ...opts };
 
     const out = await renderFile({}, options);
-    expect(out).toEqual("SIMPLE\nA\nB\nA\nB\nbody { background: black; }");
+    expect(out).toEqual(
+      "SIMPLE\n<div>A</div>\nB\n<p>A</p>\nB\nbody { background: black; }"
+    );
   });
 
   test("Include Not Found", async () => {
@@ -24,7 +26,7 @@ describe("Tags - include", () => {
     } catch (e) {
       expect(e).toBeInstanceOf(Error);
       expect(e.message).toMatch("Failed to resolve include");
-      expect(e.message).toMatch(">> 2| {% include \"ceases-to-exist.birk\" %}");
+      expect(e.message).toMatch('>> 2| {% include "ceases-to-exist.birk" %}');
     }
   });
 
