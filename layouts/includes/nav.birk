@@ -1,0 +1,22 @@
+
+{% mixin navItem url %}
+  {% assign className = url === page.url ? "active" : "" %}
+  <li class="{{ className }}"><a href="/birk{{ url }}">{{ pages[url] }}</a></li>
+{% endmixin %}
+
+<ul>
+  {% comment %} {% +navItem "/" %} {% endcomment %}
+  {% +navItem "/why-birk/" %}
+  {% +navItem "/docs/" %}
+</ul>
+<ul>
+  {% +navItem "/docs/tags/" %}
+  {% +navItem "/docs/tags/control-flow-tags/" %}
+  {% +navItem "/docs/tags/iteration-tags/" %}
+  {% +navItem "/docs/tags/variable-tags/" %}
+  {% +navItem "/docs/tags/theme-tags/" %}
+</ul>
+<ul>
+  {% +navItem "/docs/filters/" %}
+  {% +navItem "/docs/filters/array-filters/" %}
+</ul>

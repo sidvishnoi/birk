@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+{% include "head.birk" %}
+</head>
+<body>
+  <main>
+    <nav>
+      {% include "nav.birk" %}
+    </nav>
+    <article>
+      <h1>{{ page.title }}</h1>
+      {{ page.content | markdown }}
+    </article>
+  </main>
+</body>
+</html>

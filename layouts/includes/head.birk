@@ -1,0 +1,7 @@
+<meta charset="utf-8" />
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>{{ page.title }} | Birk</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" type="text/css" media="screen" href="/birk/assets/css/main.css" />
+<link rel="stylesheet" type="text/css" media="screen" href="/birk/assets/css/highlight.dark.css" />
+<link href="https://fonts.googleapis.com/css?family=Quicksand:400,700|Raleway:700" rel="stylesheet">
