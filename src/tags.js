@@ -189,7 +189,9 @@ const tags = {
     const itr = rangeRegex.test(iterable) ? createRange(iterable) : iterable;
     const { indexer, value } = loop;
 
+    // ensure `itr` can be used in `Object.entries()`
     state.buf.addPlain(`_r_.uniter(${itr}, \`${itr}\`);`);
+
     let output = `for (const [${indexer}, ${value}] of Object.entries(${itr}))`;
 
     const loopFilters = filters.filter(
@@ -303,70 +305,50 @@ function simpleToken(state, token) {
  *  b: for indexer, value in iterable
  *  value can be:
  *    1. basic identifier
- *    2. object literal
- *    3. array literal
+ *    2. object literal (starts with `{`)
+ *    3. array literal (starts with `[`)
  *  key is an identifier
  * @param {string} args
  * */
 function getLoopComponents(args) {
   const [front, iterable] = args.split(" in ", 2);
   if (!iterable) throw new Error("Invalid for loop");
-  const result = {};
-  result.iterable = iterable;
 
   // remove starting { or [ and ending } or ], then split at comma
   /** @type {(s: string) => string[]} */
-  const split = s =>
-    s
-      .slice(1, -1)
-      .split(",")
-      .map(i => i.trim());
-  /** @param {string[]} ids, @param {string} type */
+  const split = s => splitString(s.slice(1, -1), ",").slice(0, -1);
+  /** @param {string} str */
+  const valueTypeOf = str => (str[0] === "[" ? 3 : str[0] === "{" ? 2 : 1);
+  /** @param {string[]} ids, @param {number} type */
   const loopValue = (ids, type) => {
-    if (type[1] === "2") return `{${ids.join(", ")}}`;
-    if (type[1] === "3") return `[${ids.join(", ")}]`;
+    if (type === 3) return `[${ids.join(", ")}]`;
+    if (type === 2) return `{${ids.join(", ")}}`;
     return ids[0];
   };
 
   if (!front.includes(",")) {
-    result.type = "a";
-    if (front.startsWith("{")) {
-      result.type += "2";
-      result.ids = split(front);
-    } else if (front.startsWith("[")) {
-      result.type += "3";
-      result.ids = split(front);
-    } else {
-      result.ids = [front];
-      result.type += "1";
-    }
-    result.value = loopValue(result.ids, result.type);
-    return result;
+    // type "a";
+    const type = valueTypeOf(front);
+    const ids = type === 1 ? [front] : split(front);
+    const value = loopValue(ids, type);
+    return { iterable, ids, value };
   }
 
-  let value = front;
+  let valuePart, indexer;
   if (/^\w+,/.test(front)) {
-    result.type = "b";
-    const [indexer, val] = splitString(front, ",", 1);
-    result.indexer = indexer;
-    value = val.replace(/^\s*,/, "").trim();
+    // type "b";
+    const [i, v] = splitString(front, ",", 1);
+    indexer = i;
+    valuePart = v.replace(/^\s*,/, "").trim();
   } else {
-    result.type = "a";
+    // type "a";
+    valuePart = front;
   }
 
-  if (value.startsWith("{")) {
-    result.type += "2";
-    result.ids = split(value);
-  } else if (value.startsWith("[")) {
-    result.type += "3";
-    result.ids = split(value);
-  } else {
-    result.type += "1";
-    result.ids = [value];
-  }
-
-  result.value = loopValue(result.ids, result.type);
-  return result;
+  const type = valueTypeOf(valuePart);
+  const ids = type === 1 ? [valuePart] : split(valuePart);
+  const value = loopValue(ids, type);
+  return { iterable, ids, value, indexer };
 }
 
 export default tags;
