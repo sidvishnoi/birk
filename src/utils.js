@@ -111,6 +111,36 @@ function findTag(tag, state, ignoreNesting = false) {
 }
 
 /**
+ * Generate code that applies filters to an object.
+ * ``` js
+ * // input = {{ foo | filter1: arg1 | filter2: arg2, arg3 | filter3 }}
+ * // => to = "foo", filters: [{ name: filter1, args: ["arg1"] }, ...]
+ * filter3(filter2(filter1(foo, arg1), arg2, arg3))
+ * ```
+ * @param {Array<{ name: string, args: string[] }>} filters
+ * @param {string} to filter applies to this object
+ * @param {import("birk").State} state
+ */
+function applyFilters(filters, to, state) {
+  const token = state.tokens[state.idx];
+  let prefix = "";
+  let suffix = "";
+  for (let i = 0, length = filters.length; i < length; ++i) {
+    const filterName = filters[length - 1 - i].name;
+    // save first used filter location to debug purposes
+    if (!state.filters.has(filterName)) {
+      state.filters.set(filterName, [token.fpos, state.file]);
+    }
+    prefix += `${filterName}(`;
+    if (filters[i].args.length > 0) {
+      suffix += `, ${filters[i].args.join(", ")}`;
+    }
+    suffix += ")";
+  }
+  return prefix + to + suffix;
+}
+
+/**
  * split string at `ch` unless `ch` is inside quotes
  * @param {string} str
  * @param {string} ch
@@ -280,6 +310,7 @@ class Buffer {
 export {
   addIndent,
   addLocal,
+  applyFilters,
   asUnixPath,
   BirkError,
   Buffer,

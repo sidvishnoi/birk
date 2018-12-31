@@ -1,10 +1,10 @@
 // @ts-check
 import {
   addLocal,
+  applyFilters,
   BirkError,
   Buffer,
   errorContext2,
-  isValidIdentifier,
   VariableContext,
 }  from "./utils";
 import tags from "./tags";
@@ -124,28 +124,8 @@ function handleObject(state) {
   const token = /** @type {ObjectToken} */ (state.tokens[state.idx]);
   state.buf.addDebug(state);
   const { name, filters } = token;
-
   addLocal(name, state);
-
-  let prefix = "";
-  let suffix = "";
-  for (let i = 0, length = filters.length; i < length; ++i) {
-    const filterName = filters[length - 1 - i].name;
-    state.filters.set(filterName, [token.fpos, state.file]);
-    prefix += `${filterName}(`;
-    if (filters[i].args.length > 0) {
-      suffix += `, ${filters[i].args.join(", ")}`;
-    }
-    suffix += ")";
-  }
-
-  if (state.conf.compileDebug && isValidIdentifier(name)) {
-    state.buf.addPlain(`_msg_ = _r_.undef(${name}, \`${name}\`);`);
-  }
-  state.buf.add(prefix + name + suffix);
-  if (state.conf.compileDebug) {
-    state.buf.addPlain("_msg_ = '';");
-  }
+  state.buf.add(applyFilters(filters, name, state));
   state.idx += 1;
 }
 
@@ -210,7 +190,7 @@ function handleBlocks(state) {
 }
 
 function inlineRuntime(state) {
-  const { context, rethrow, undef, uniter, filters } = state.conf._runtime;
+  const { context, rethrow, uniter, filters } = state.conf._runtime;
   const r = [];
   r.push("const _r_ = {");
 
@@ -237,7 +217,6 @@ function inlineRuntime(state) {
   r.push(`context: ${context.toString()},`);
   r.push(`BirkError: ${BirkError.toString()},`);
   r.push(`rethrow: ${rethrow.toString()},`);
-  r.push(`undef: ${undef.toString()},`);
   r.push(`uniter: ${uniter.toString()},`);
   r.push("};");
   return r.join("\n");

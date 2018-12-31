@@ -17,7 +17,6 @@ const rethrow = (pos, file, runtime, err, msg) => {
   throw new BirkError(message, "", ctx);
 };
 
-const undef = (v, i) => !v ? `${i} is ${JSON.stringify(v)}` : "";
 const uniter = (v, i) => {
   if (!v || typeof v === "number") {
     throw new Error(`${i} is not iterable`);
@@ -29,6 +28,5 @@ export {
   rethrow,
   errorContext as context,
   BirkError,
-  undef,
   uniter,
 };

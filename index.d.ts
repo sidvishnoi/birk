@@ -49,7 +49,7 @@ declare module "birk" {
       ctx?: number,
     ) => string;
     BirkError: typeof BirkError;
-    undef: (value: any, id: string) => string;
+    uniter: (value: any, id: string) => void;
   };
 
   export type RawToken = {
