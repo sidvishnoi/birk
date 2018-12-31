@@ -230,6 +230,7 @@ const tags = {
   mixin(state, { args, val }) {
     const start = state.idx;
     const end = findTag("endmixin", state);
+    state.idx += 1;
     const [mixinName, _params] = splitString(args, ":", 2);
     if (mixinName.includes(" ")) {
       const suggestion = val.replace(mixinName, mixinName.replace(" ", ": "));
