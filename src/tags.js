@@ -34,6 +34,22 @@ const tags = {
     state.idx += 1;
   },
 
+  using(state, { args }) {
+    const names = splitString(args, ",");
+    names.pop(); // remove last one as it's empty
+    names.forEach(name => {
+      if (!isValidVariableName(name)) {
+        const msg =
+          "`using` tag expects base level identifiers separated by comma.";
+        throw new BirkError(msg, "Compile", errorContext2(state));
+      }
+      state.locals.add(name);
+      state.localsFullNames.add(name);
+      state.context[0].add(name); // add to global context
+    });
+    state.idx += 1;
+  },
+
   capture(state, { args }) {
     const end = findTag("endcapture", state, true);
 

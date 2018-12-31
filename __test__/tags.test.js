@@ -1,5 +1,5 @@
 /** @type {import("..")} */
-const { renderString: render } = require("../build/");
+const { renderString: render, compileString: compile } = require("../build/");
 
 describe("Tags", () => {
   test("assign", () => {
@@ -8,6 +8,18 @@ describe("Tags", () => {
       "{% assign foo += 10 %}{{ foo }}," +
       "{% assign bar = 10 %}{{ foo | plus: bar }}";
     expect(render(template)).toEqual("5,15,25");
+  });
+
+  test("using", () => {
+    expect(compile("{% using foo, bar%}").locals).toEqual(
+      new Set(["foo", "bar"])
+    );
+    expect(() => compile("{% using foo bar%}").locals).toThrow(
+      /expects base level identifiers/
+    );
+    expect(() => compile("{% using %}").locals).toThrow(
+      /expects base level identifiers/
+    );
   });
 
   test("capture", () => {
