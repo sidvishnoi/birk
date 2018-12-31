@@ -168,7 +168,9 @@ function handleMixins(state) {
   for (const [mixinName, { tokens, params }] of state.mixins.entries()) {
     state.idx = 0;
     state.tokens = tokens;
+    state.context.create();
     state.buf.addPlain(`function _mixin_${mixinName}(${params.join(", ")}) {`);
+    params.forEach(param => state.context.add(param));
     generateCode(tokens, state);
     state.buf.addPlain("}");
   }
